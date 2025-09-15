@@ -1,0 +1,155 @@
+'use client';
+
+import { MediaItem, MediaType, MediaStatus } from '@/lib/types';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { MoreVertical, Edit, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import Image from 'next/image';
+
+interface MediaCardProps {
+  media: MediaItem;
+  onEdit: (media: MediaItem) => void;
+  onDelete: (id: string) => void;
+  className?: string;
+}
+
+export function MediaCard({ media, onEdit, onDelete, className }: MediaCardProps) {
+  const [imageError, setImageError] = useState(false);
+
+  const getProgressPercentage = (): number => {
+    if (!media.progress?.current || !media.progress?.total) return 0;
+    return Math.round((media.progress.current / media.progress.total) * 100);
+  };
+
+  const getProgressText = (): string => {
+    const { current = 0, total = 0 } = media.progress || {};
+    
+    switch (media.mediaType) {
+      case MediaType.Book:
+        return `Page ${current} of ${total}`;
+      case MediaType.Anime:
+        return `Episode ${current} of ${total}`;
+      case MediaType.Manga:
+        const volumeText = media.additionalProgress?.volume 
+          ? ` • Volume ${media.additionalProgress.volume.current} of ${media.additionalProgress.volume.total}`
+          : '';
+        return `Chapter ${current} of ${total}${volumeText}`;
+      case MediaType.Show:
+        const seasonText = media.additionalProgress?.season
+          ? `Season ${media.additionalProgress.season.current}, Episode ${current}`
+          : `Episode ${current}`;
+        const totalSeasons = media.additionalProgress?.season?.total;
+        return totalSeasons ? `${seasonText} (of ${totalSeasons} seasons)` : seasonText;
+      default:
+        return `${current} of ${total}`;
+    }
+  };
+
+  const getProgressBarVariant = (): string => {
+    switch (media.status) {
+      case MediaStatus.InProgress:
+        return 'bg-blue-500';
+      case MediaStatus.Paused:
+        return 'bg-yellow-500';
+      case MediaStatus.Completed:
+        return 'bg-green-500';
+      case MediaStatus.Archived:
+        return 'bg-gray-500';
+      default:
+        return 'bg-blue-500';
+    }
+  };
+
+  const handleDelete = () => {
+    if (media.mediaItemId && window.confirm(`Are you sure you want to delete "${media.name}"?`)) {
+      onDelete(media.mediaItemId);
+    }
+  };
+
+  return (
+    <Card className={`hover:shadow-md transition-shadow duration-200 ${className}`}>
+      <CardContent className="p-4">
+        <div className="flex gap-3">
+          {/* Cover Art */}
+          <div className="flex-shrink-0">
+            <div className="w-16 h-20 bg-gray-200 rounded-md overflow-hidden relative">
+              {media.coverArtUrl && !imageError ? (
+                <Image
+                  src={media.coverArtUrl}
+                  alt={media.name || 'Cover art'}
+                  fill
+                  className="object-cover"
+                  onError={() => setImageError(true)}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
+                  {media.mediaType}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium text-sm leading-tight truncate">
+                  {media.name || 'Untitled'}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {media.mediaType}
+                </p>
+              </div>
+
+              {/* Actions */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => onEdit(media)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={handleDelete}
+                    className="text-red-600 focus:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Progress */}
+            {media.progress && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span>{getProgressText()}</span>
+                  <span className="font-medium">{getProgressPercentage()}%</span>
+                </div>
+                <Progress 
+                  value={getProgressPercentage()} 
+                  className={`h-2 ${media.status === MediaStatus.InProgress ? 'progress-striped' : ''}`}
+                />
+              </div>
+            )}
+
+            {/* Additional info */}
+            {media.external?.score && (
+              <div className="mt-2 text-xs text-muted-foreground">
+                Score: {media.external.score}/10
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
