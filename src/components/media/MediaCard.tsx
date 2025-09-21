@@ -1,6 +1,13 @@
 'use client';
 
 import { MediaItem, MediaType, MediaStatus } from '@/lib/types';
+import { 
+  getPrimaryProgressText, 
+  getSecondaryProgressText, 
+  getProgressPercentage, 
+  shouldShowProgressBar,
+  getProgressBarColor 
+} from '@/lib/media-utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -19,48 +26,15 @@ interface MediaCardProps {
 export function MediaCard({ media, onEdit, onDelete, className }: MediaCardProps) {
   const [imageError, setImageError] = useState(false);
 
-  const getProgressPercentage = (): number => {
-    if (!media.progress?.current || !media.progress?.total) return 0;
-    return Math.round((media.progress.current / media.progress.total) * 100);
-  };
-
   const getProgressText = (): string => {
-    const { current = 0, total = 0 } = media.progress || {};
+    const primary = getPrimaryProgressText(media);
+    const secondary = getSecondaryProgressText(media);
     
-    switch (media.mediaType) {
-      case MediaType.Book:
-        return `Page ${current} of ${total}`;
-      case MediaType.Anime:
-        return `Episode ${current} of ${total}`;
-      case MediaType.Manga:
-        const volumeText = media.additionalProgress?.volume 
-          ? ` • Volume ${media.additionalProgress.volume.current} of ${media.additionalProgress.volume.total}`
-          : '';
-        return `Chapter ${current} of ${total}${volumeText}`;
-      case MediaType.Show:
-        const seasonText = media.additionalProgress?.season
-          ? `Season ${media.additionalProgress.season.current}, Episode ${current}`
-          : `Episode ${current}`;
-        const totalSeasons = media.additionalProgress?.season?.total;
-        return totalSeasons ? `${seasonText} (of ${totalSeasons} seasons)` : seasonText;
-      default:
-        return `${current} of ${total}`;
+    if (secondary) {
+      return `${primary} • ${secondary}`;
     }
-  };
-
-  const getProgressBarVariant = (): string => {
-    switch (media.status) {
-      case MediaStatus.InProgress:
-        return 'bg-blue-500';
-      case MediaStatus.Paused:
-        return 'bg-yellow-500';
-      case MediaStatus.Completed:
-        return 'bg-green-500';
-      case MediaStatus.Archived:
-        return 'bg-gray-500';
-      default:
-        return 'bg-blue-500';
-    }
+    
+    return primary;
   };
 
   const handleDelete = () => {
@@ -128,14 +102,14 @@ export function MediaCard({ media, onEdit, onDelete, className }: MediaCardProps
             </div>
 
             {/* Progress */}
-            {media.progress && (
+            {media.progress && shouldShowProgressBar(media.mediaType) && (
               <div className="mt-3">
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span>{getProgressText()}</span>
-                  <span className="font-medium">{getProgressPercentage()}%</span>
+                  <span className="font-medium">{getProgressPercentage(media)}%</span>
                 </div>
                 <Progress 
-                  value={getProgressPercentage()} 
+                  value={getProgressPercentage(media)} 
                   className={`h-2 ${media.status === MediaStatus.InProgress ? 'progress-striped' : ''}`}
                 />
               </div>

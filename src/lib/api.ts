@@ -5,349 +5,137 @@ import {
   ShowSearchResult,
   BookSearchResult,
   MediaType,
-  MediaStatus
+  MediaStatus,
+  AddMediaFormData,
+  EditMediaFormData
 } from './types';
 import { v4 as uuidv4 } from 'uuid';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc,
-  Timestamp,
-  orderBy
-} from 'firebase/firestore';
-import { db, auth } from './firebase';
+import { auth } from './firebase';
 
-// Firestore Service for data persistence with Firebase Authentication
-class FirestoreService {
-  private readonly COLLECTION_NAME = 'mediaItems';
-
-  private async getCurrentUserId(): Promise<string> {
-    if (!auth.currentUser) {
-      throw new Error('User not authenticated');
-    }
-    return auth.currentUser.uid;
-  }
-
-  private async getIdToken(): Promise<string> {
-    if (!auth.currentUser) {
-      throw new Error('User not authenticated');
-    }
-    return await auth.currentUser.getIdToken();
-  }
-
-  async getMediaItems(): Promise<MediaItem[]> {
-    try {
-      const userId = await this.getCurrentUserId();
-      const q = query(
-        collection(db, this.COLLECTION_NAME),
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc')
-      );
-      
-      const querySnapshot = await getDocs(q);
-      const items: MediaItem[] = [];
-      
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        items.push({
-          ...data,
-          mediaItemId: doc.id,
-          createdAt: data.createdAt?.toDate?.() || new Date(),
-          updatedAt: data.updatedAt?.toDate?.() || new Date(),
-        } as MediaItem);
-      });
-      
-      return items;
-    } catch (error) {
-      console.error('Error fetching media items:', error);
-      throw error;
-    }
-  }
-
-  async addMediaItem(item: MediaItem): Promise<string> {
-    try {
-      const userId = await this.getCurrentUserId();
-      await this.getIdToken(); // Verify token is valid
-      
-      const now = Timestamp.now();
-      const itemWithMetadata = {
-        ...item,
-        userId,
-        createdAt: now,
-        updatedAt: now,
-      };
-      
-      // Remove mediaItemId if it exists (Firestore will generate it)
-      const { mediaItemId: _mediaItemId, ...itemToAdd } = itemWithMetadata;
-      
-      const docRef = await addDoc(collection(db, this.COLLECTION_NAME), itemToAdd);
-      return docRef.id;
-    } catch (error) {
-      console.error('Error adding media item:', error);
-      throw error;
-    }
-  }
-
-  async updateMediaItem(updatedItem: MediaItem): Promise<void> {
-    try {
-      const userId = await this.getCurrentUserId();
-      await this.getIdToken(); // Verify token is valid
-      
-      if (!updatedItem.mediaItemId) {
-        throw new Error('Media item ID is required for update');
+// API Service for our custom Next.js backend
+class ApiService {
+  private async getAuthHeaders(): Promise<Record<string, string>> {
+    const user = auth.currentUser;
+    let idToken = null;
+    
+    if (user) {
+      try {
+        idToken = await user.getIdToken();
+      } catch (error) {
+        console.error('Error getting ID token:', error);
+        throw new Error('User not authenticated');
       }
-
-      const docRef = doc(db, this.COLLECTION_NAME, updatedItem.mediaItemId);
-      const updateData = {
-        ...updatedItem,
-        userId,
-        updatedAt: Timestamp.now(),
-      };
-      
-      // Remove mediaItemId from update data
-      const { mediaItemId: _mediaItemId, ...dataToUpdate } = updateData;
-      
-      await updateDoc(docRef, dataToUpdate);
-    } catch (error) {
-      console.error('Error updating media item:', error);
-      throw error;
-    }
-  }
-
-  async deleteMediaItem(mediaItemId: string): Promise<void> {
-    try {
-      await this.getIdToken(); // Verify token is valid
-      
-      const docRef = doc(db, this.COLLECTION_NAME, mediaItemId);
-      await deleteDoc(docRef);
-    } catch (error) {
-      console.error('Error deleting media item:', error);
-      throw error;
-    }
-  }
-}
-
-// Media Service - handles all media-related operations with Firestore and Firebase Authentication
-export class MediaService {
-  private storage = new FirestoreService();
-
-  async getIdToken(): Promise<string | null> {
-    try {
-      if (auth.currentUser) {
-        return await auth.currentUser.getIdToken();
-      }
-    } catch (error) {
-      console.warn('Failed to get ID token:', error);
-    }
-    return null;
-  }
-
-  async getMedia(): Promise<MediaItem[]> {
-    return await this.storage.getMediaItems();
-  }
-
-  async addMedia(item: MediaItem): Promise<void> {
-    // Ensure the item has an ID
-    if (!item.mediaItemId) {
-      item.mediaItemId = uuidv4();
+    } else {
+      throw new Error('User not authenticated');
     }
     
-    await this.storage.addMediaItem(item);
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`,
+    };
   }
 
-  async updateMedia(item: MediaItem): Promise<void> {
-    await this.storage.updateMediaItem(item);
-  }
+  private async request<T>(
+    endpoint: string, 
+    options: RequestInit = {}
+  ): Promise<T> {
+    const headers = await this.getAuthHeaders();
+    
+    const response = await fetch(`/api${endpoint}`, {
+      ...options,
+      headers: {
+        ...headers,
+        ...options.headers,
+      },
+    });
 
-  async deleteMedia(mediaItemId: string): Promise<void> {
-    await this.storage.deleteMediaItem(mediaItemId);
-  }
-}
-
-// Search Service - handles external API searches
-class SearchService {
-  private jikanBaseUrl = 'https://api.jikan.moe/v4';
-  private tmdbBaseUrl = 'https://api.themoviedb.org/3';
-  private googleBooksBaseUrl = 'https://www.googleapis.com/books/v1';
-  
-  private tmdbApiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
-  private googleBooksApiKey = process.env.NEXT_PUBLIC_GOOGLE_BOOKS_API_KEY;
-
-  async searchAnime(query: string): Promise<AnimeSearchResult[]> {
-    try {
-      const response = await fetch(
-        `${this.jikanBaseUrl}/anime?q=${encodeURIComponent(query)}&limit=10`
-      );
-      
-      if (!response.ok) {
-        throw new Error('Failed to search anime');
-      }
-
-      const data = await response.json();
-      return data.data || [];
-    } catch (error) {
-      console.error('Anime search failed:', error);
-      return [];
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
+
+    const result = await response.json();
+    
+    // Extract data from our API response format { success: true, data: [...] }
+    if (result.success && result.data !== undefined) {
+      return result.data;
+    }
+    
+    // If it's not wrapped in our standard format, return as-is
+    return result;
+  }
+
+  // Media API methods
+  async getMedia(): Promise<MediaItem[]> {
+    return this.request<MediaItem[]>('/media');
+  }
+
+  async addMedia(mediaItem: MediaItem): Promise<string> {
+    const response = await fetch('/api/media', {
+      method: 'POST',
+      headers: await this.getAuthHeaders(),
+      body: JSON.stringify(mediaItem),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    return result.mediaItemId || result.data?.mediaItemId || mediaItem.mediaItemId;
+  }
+
+  async updateMedia(formData: EditMediaFormData): Promise<void> {
+    if (!formData.mediaItemId) {
+      throw new Error('Media item ID is required for update');
+    }
+
+    const mediaItem: Partial<MediaItem> = {
+      mediaItemId: formData.mediaItemId,
+      name: formData.name,
+      mediaType: formData.mediaType,
+      status: formData.status,
+      coverArtUrl: formData.coverArtUrl,
+      progress: {
+        current: formData.currentProgress,
+        total: formData.totalProgress,
+      },
+      external: formData.external,
+    };
+    
+    await this.request(`/media/${formData.mediaItemId}`, {
+      method: 'PUT',
+      body: JSON.stringify(mediaItem),
+    });
+  }
+
+  async deleteMedia(id: string): Promise<void> {
+    await this.request(`/media/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Search API methods - these will use external APIs through our backend
+  async searchAnime(query: string): Promise<AnimeSearchResult[]> {
+    return this.request<AnimeSearchResult[]>(`/search/anime?query=${encodeURIComponent(query)}`);
   }
 
   async searchManga(query: string): Promise<MangaSearchResult[]> {
-    try {
-      const response = await fetch(
-        `${this.jikanBaseUrl}/manga?q=${encodeURIComponent(query)}&limit=10`
-      );
-      
-      if (!response.ok) {
-        throw new Error('Failed to search manga');
-      }
-
-      const data = await response.json();
-      return data.data || [];
-    } catch (error) {
-      console.error('Manga search failed:', error);
-      return [];
-    }
+    return this.request<MangaSearchResult[]>(`/search/manga?query=${encodeURIComponent(query)}`);
   }
 
   async searchShows(query: string): Promise<ShowSearchResult[]> {
-    try {
-      if (!this.tmdbApiKey) {
-        console.warn('TMDB API key not configured');
-        return [];
-      }
-
-      const response = await fetch(
-        `${this.tmdbBaseUrl}/search/tv?api_key=${this.tmdbApiKey}&query=${encodeURIComponent(query)}`
-      );
-      
-      if (!response.ok) {
-        throw new Error('Failed to search shows');
-      }
-
-      const data = await response.json();
-      return data.results || [];
-    } catch (error) {
-      console.error('Shows search failed:', error);
-      return [];
-    }
+    return this.request<ShowSearchResult[]>(`/search/shows?query=${encodeURIComponent(query)}`);
   }
 
   async searchBooks(query: string): Promise<BookSearchResult[]> {
-    try {
-      const url = this.googleBooksApiKey 
-        ? `${this.googleBooksBaseUrl}/volumes?q=${encodeURIComponent(query)}&key=${this.googleBooksApiKey}&maxResults=10`
-        : `${this.googleBooksBaseUrl}/volumes?q=${encodeURIComponent(query)}&maxResults=10`;
-
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error('Failed to search books');
-      }
-
-      const data = await response.json();
-      return data.items || [];
-    } catch (error) {
-      console.error('Books search failed:', error);
-      return [];
-    }
+    return this.request<BookSearchResult[]>(`/search/books?query=${encodeURIComponent(query)}`);
   }
 }
 
-// Helper functions to convert search results to MediaItem format
-export function convertAnimeToMediaItem(anime: AnimeSearchResult): MediaItem {
-  return {
-    mediaItemId: uuidv4(),
-    name: anime.title || anime.title_english || 'Unknown Title',
-    mediaType: MediaType.Anime,
-    status: MediaStatus.InProgress,
-    dateAdded: new Date(),
-    coverArtUrl: anime.images?.jpg?.image_url,
-    progress: {
-      current: 0,
-      total: anime.episodes || undefined,
-    },
-    external: {
-      id: anime.mal_id?.toString(),
-      source: 'MyAnimeList',
-      score: anime.score,
-      genres: anime.genres?.map(g => g.name) || [],
-      synopsis: anime.synopsis,
-    },
-  };
-}
+// Create singleton instance
+export const mediaService = new ApiService();
 
-export function convertMangaToMediaItem(manga: MangaSearchResult): MediaItem {
-  return {
-    mediaItemId: uuidv4(),
-    name: manga.title || manga.title_english || 'Unknown Title',
-    mediaType: MediaType.Manga,
-    status: MediaStatus.InProgress,
-    dateAdded: new Date(),
-    coverArtUrl: manga.images?.jpg?.image_url,
-    progress: {
-      current: 0,
-      total: manga.chapters || undefined,
-    },
-    external: {
-      id: manga.mal_id?.toString(),
-      source: 'MyAnimeList',
-      score: manga.score,
-      genres: manga.genres?.map(g => g.name) || [],
-      synopsis: manga.synopsis,
-    },
-  };
-}
-
-export function convertShowToMediaItem(show: ShowSearchResult): MediaItem {
-  return {
-    mediaItemId: uuidv4(),
-    name: show.name || 'Unknown Title',
-    mediaType: MediaType.Show,
-    status: MediaStatus.InProgress,
-    dateAdded: new Date(),
-    coverArtUrl: show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : undefined,
-    progress: {
-      current: 0,
-      total: show.number_of_episodes || undefined,
-    },
-    external: {
-      id: show.id?.toString(),
-      source: 'TMDB',
-      score: show.vote_average,
-      genres: show.genre_ids?.map(id => id.toString()) || [],
-      synopsis: show.overview,
-    },
-  };
-}
-
-export function convertBookToMediaItem(book: BookSearchResult): MediaItem {
-  const volumeInfo = book.volumeInfo;
-  return {
-    mediaItemId: uuidv4(),
-    name: volumeInfo?.title || 'Unknown Title',
-    mediaType: MediaType.Book,
-    status: MediaStatus.InProgress,
-    dateAdded: new Date(),
-    coverArtUrl: volumeInfo?.imageLinks?.thumbnail,
-    progress: {
-      current: 0,
-      total: volumeInfo?.pageCount || undefined,
-    },
-    external: {
-      id: book.id,
-      source: 'Google Books',
-      score: volumeInfo?.averageRating,
-      genres: volumeInfo?.categories || [],
-      synopsis: volumeInfo?.description,
-    },
-  };
-}
-
-// Singleton instances
-export const mediaService = new MediaService();
-export const searchService = new SearchService();
+// Backwards compatibility - export both as mediaService and searchService
+export const searchService = mediaService;

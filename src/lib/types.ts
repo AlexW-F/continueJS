@@ -27,19 +27,29 @@ export interface ExternalMetadata {
 }
 
 export interface MediaItem {
-  mediaItemId?: string; // Optional because Firestore generates it
-  name?: string;
-  mediaType: MediaType;
-  status: MediaStatus;
-  dateAdded: Date;
-  datePaused?: Date;
-  coverArtUrl?: string;
-  progress?: ProgressData;
-  additionalProgress?: Record<string, ProgressData>; // For volumes, seasons, etc.
-  external?: ExternalMetadata;
-  userId?: string; // Added for Firestore user association
-  createdAt?: Date; // Added for Firestore timestamps
-  updatedAt?: Date; // Added for Firestore timestamps
+  // CORE FIELDS (Always Present)
+  mediaItemId: string;           // Unique identifier
+  name?: string;                 // Title of the media
+  mediaType: MediaType;          // "Book" | "Show" | "Anime" | "Manga"
+  status: MediaStatus;           // "InProgress" | "Paused" | "Archived" | "Completed" | "Retired"
+  dateAdded: Date;               // Date object (converted from ISO string)
+  datePaused?: Date;             // Date object (nullable, converted from ISO string)
+  coverArtUrl?: string;          // Image URL (nullable)
+  
+  // DYNAMIC PROGRESS TRACKING
+  progress?: ProgressData;       // Primary progress (meaning varies by type)
+  additionalProgress?: Record<string, ProgressData>; // Secondary progress dimensions
+  
+  // EXTERNAL API METADATA
+  external?: ExternalMetadata;   // Data from external APIs
+  
+  // Legacy fields for backwards compatibility
+  userId?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  isCompleted?: boolean;
+  isRetired?: boolean;
+  isActive?: boolean;
 }
 
 // Search result interfaces for external APIs

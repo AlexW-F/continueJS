@@ -13,11 +13,26 @@ export function SignIn() {
   const handleSignIn = async () => {
     try {
       setIsLoading(true);
+      console.log('Starting sign in process...');
       await signIn();
       toast.success('Successfully signed in!');
     } catch (error) {
       console.error('Sign in error:', error);
-      toast.error('Failed to sign in. Please try again.');
+      
+      // More specific error handling
+      if (error instanceof Error) {
+        if (error.message.includes('popup-closed-by-user')) {
+          toast.error('Sign in was cancelled. Please try again.');
+        } else if (error.message.includes('popup-blocked')) {
+          toast.error('Popup was blocked. Please allow popups and try again.');
+        } else if (error.message.includes('network-request-failed')) {
+          toast.error('Network error. Please check your connection and try again.');
+        } else {
+          toast.error(`Sign in failed: ${error.message}`);
+        }
+      } else {
+        toast.error('Failed to sign in. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }

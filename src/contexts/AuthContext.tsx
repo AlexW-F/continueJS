@@ -3,13 +3,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
   User as FirebaseUser,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signOut as firebaseSignOut,
   onAuthStateChanged,
-  getIdToken
+  getIdToken,
+  GoogleAuthProvider
 } from 'firebase/auth';
-import { auth, googleProvider } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { User } from '@/lib/types';
 
 interface AuthContextType {
@@ -42,8 +42,16 @@ function mapFirebaseUser(firebaseUser: FirebaseUser): User {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    // Mark as client-side to prevent hydration mismatch
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isClient) return;
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         setUser(mapFirebaseUser(firebaseUser));
@@ -54,18 +62,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [isClient]);
+
+  // Don't render children until client-side hydration is complete
+  if (!isClient) {
+    return <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    </div>;
+  }
 
   const signIn = async () => {
     try {
       setLoading(true);
-      const result = await signInWithPopup(auth, googleProvider);
-      setUser(mapFirebaseUser(result.user));
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
+      await signInWithPopup(auth, provider);
+      setLoading(false);
     } catch (error) {
       console.error('Sign in failed:', error);
-      throw error;
-    } finally {
       setLoading(false);
+      throw error;
     }
   };
 

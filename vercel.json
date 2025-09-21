@@ -1,0 +1,16 @@
+{
+  "functions": {
+    "app/**/*.tsx": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "NEXT_PUBLIC_API_BASE_URL": "https://continue-production.up.railway.app/"
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://continue-production.up.railway.app/api/$1"
+    }
+  ]
+}
