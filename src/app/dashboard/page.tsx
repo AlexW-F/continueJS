@@ -6,7 +6,7 @@ import { Navigation } from '@/components/layout/Navigation';
 import { KanbanBoard } from '@/components/media/KanbanBoard';
 import { AddMediaDialog } from '@/components/media/AddMediaDialog';
 import { EditMediaDialog } from '@/components/media/EditMediaDialog';
-import { useMedia, useAddMedia, useUpdateMedia, useUpdateMediaStatus, useDeleteMedia } from '@/hooks/useMedia';
+import { useMedia, useAddMedia, useUpdateMedia, useDebouncedUpdateMediaStatus, useDeleteMedia } from '@/hooks/useMedia';
 import { MediaItem, MediaStatus, AddMediaFormData, EditMediaFormData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2 } from 'lucide-react';
@@ -19,7 +19,7 @@ function DashboardContent() {
   const { data: media = [], isLoading, error } = useMedia();
   const addMediaMutation = useAddMedia();
   const updateMediaMutation = useUpdateMedia();
-  const updateStatusMutation = useUpdateMediaStatus();
+  const debouncedUpdateStatus = useDebouncedUpdateMediaStatus();
   const deleteMediaMutation = useDeleteMedia();
 
   const handleAddMedia = (data: AddMediaFormData) => {
@@ -36,7 +36,7 @@ function DashboardContent() {
   };
 
   const handleUpdateStatus = (mediaId: string, newStatus: MediaStatus) => {
-    updateStatusMutation.mutate({ mediaId, newStatus });
+    debouncedUpdateStatus.mutateDebounced(mediaId, newStatus);
   };
 
   const handleDeleteMedia = (id: string) => {

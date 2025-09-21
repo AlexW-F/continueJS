@@ -6,6 +6,7 @@ import { mediaService } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
+import { useCallback, useRef } from 'react';
 
 export function useMedia() {
   const { user } = useAuth();
@@ -14,7 +15,11 @@ export function useMedia() {
     queryKey: ['media', user?.uid],
     queryFn: () => mediaService.getMedia(),
     enabled: !!user, // Only run query when user is authenticated
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 15 * 60 * 1000, // 15 minutes - data stays fresh longer
+    gcTime: 30 * 60 * 1000, // 30 minutes - keep in cache longer (was cacheTime)
+    refetchOnWindowFocus: false, // Don't refetch when user comes back to tab
+    refetchOnMount: false, // Don't refetch on component mount if data exists
+    refetchOnReconnect: 'always', // Only refetch on reconnect if truly needed
     retry: (failureCount, error) => {
       // Don't retry if user is not authenticated
       if (error instanceof Error && error.message.includes('not authenticated')) {
@@ -24,12 +29,12 @@ export function useMedia() {
       if (error instanceof Error && error.message.includes('index is currently building')) {
         return false;
       }
-      return failureCount < 3;
+      return failureCount < 2; // Reduce retry attempts
     },
     refetchInterval: (query) => {
-      // If there's an index building error, refetch every 30 seconds
+      // If there's an index building error, refetch every 60 seconds (less frequent)
       if (query?.state.error && String(query.state.error).includes('index is currently building')) {
-        return 30000; // 30 seconds
+        return 60000; // 60 seconds
       }
       return false;
     },
@@ -185,11 +190,6 @@ export function useUpdateMedia() {
         toast.error('Failed to update media. Please try again.');
       }
     },
-    onSettled: () => {
-      if (user) {
-        queryClient.invalidateQueries({ queryKey: ['media', user.uid] });
-      }
-    },
   });
 }
 
@@ -290,13 +290,99 @@ export function useUpdateMediaStatus() {
         toast.error('Failed to update media status. Please try again.');
       }
     },
-    // Always refetch after error or success to ensure consistency
-    onSettled: () => {
-      if (user) {
-        queryClient.invalidateQueries({ queryKey: ['media', user.uid] });
+  });
+}
+
+// Debounced version for drag operations to batch rapid changes
+export function useDebouncedUpdateMediaStatus() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingUpdatesRef = useRef<Map<string, MediaStatus>>(new Map());
+
+  const mutation = useMutation({
+    mutationFn: async (updates: Array<{ mediaId: string; newStatus: MediaStatus }>) => {
+      if (!user) {
+        throw new Error('User not authenticated');
       }
+
+      // Process all pending updates
+      const results = await Promise.allSettled(
+        updates.map(async ({ mediaId, newStatus }) => {
+          const currentMedia = queryClient.getQueryData<MediaItem[]>(['media', user.uid])
+            ?.find(item => item.mediaItemId === mediaId);
+
+          if (!currentMedia) {
+            throw new Error(`Media item not found: ${mediaId}`);
+          }
+
+          const apiData: EditMediaFormData = {
+            mediaItemId: currentMedia.mediaItemId,
+            name: currentMedia.name || '',
+            mediaType: currentMedia.mediaType,
+            status: newStatus,
+            coverArtUrl: currentMedia.coverArtUrl,
+            currentProgress: currentMedia.progress?.current,
+            totalProgress: currentMedia.progress?.total,
+            external: currentMedia.external,
+          };
+
+          await mediaService.updateMedia(apiData);
+          return { mediaId, newStatus };
+        })
+      );
+
+      return results;
+    },
+    onError: (error) => {
+      console.error('Failed to batch update media status:', error);
+      toast.error('Failed to update some items. Please try again.');
     },
   });
+
+  const debouncedUpdate = useCallback((mediaId: string, newStatus: MediaStatus) => {
+    if (!user) return;
+
+    // Immediately update the cache optimistically
+    queryClient.setQueryData(['media', user.uid], (old: MediaItem[] = []) =>
+      old.map(item => {
+        if (item.mediaItemId === mediaId) {
+          return {
+            ...item,
+            status: newStatus,
+            datePaused: newStatus === MediaStatus.Paused ? new Date() : item.datePaused,
+          };
+        }
+        return item;
+      })
+    );
+
+    // Add to pending updates
+    pendingUpdatesRef.current.set(mediaId, newStatus);
+
+    // Clear existing timeout and set new one
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    timeoutRef.current = setTimeout(() => {
+      if (pendingUpdatesRef.current.size > 0) {
+        const updates = Array.from(pendingUpdatesRef.current.entries()).map(([mediaId, newStatus]) => ({
+          mediaId,
+          newStatus,
+        }));
+        
+        pendingUpdatesRef.current.clear();
+        mutation.mutate(updates);
+      }
+    }, 1000); // Wait 1 second after the last change before making API call
+  }, [user, queryClient, mutation]);
+
+  return { 
+    mutateDebounced: debouncedUpdate, 
+    isLoading: mutation.isPending,
+    error: mutation.error 
+  };
 }
 
 export function useDeleteMedia() {
@@ -345,11 +431,6 @@ export function useDeleteMedia() {
         toast.error('Please sign in to delete media.');
       } else {
         toast.error('Failed to delete media. Please try again.');
-      }
-    },
-    onSettled: () => {
-      if (user) {
-        queryClient.invalidateQueries({ queryKey: ['media', user.uid] });
       }
     },
   });
