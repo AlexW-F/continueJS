@@ -16,10 +16,10 @@ export function useMedia() {
     queryFn: () => mediaService.getMedia(),
     enabled: !!user, // Only run query when user is authenticated
     staleTime: 15 * 60 * 1000, // 15 minutes - data stays fresh longer
-    gcTime: 30 * 60 * 1000, // 30 minutes - keep in cache longer (was cacheTime)
+    gcTime: 60 * 60 * 1000, // 1 hour - keep in cache much longer
     refetchOnWindowFocus: false, // Don't refetch when user comes back to tab
     refetchOnMount: false, // Don't refetch on component mount if data exists
-    refetchOnReconnect: 'always', // Only refetch on reconnect if truly needed
+    refetchOnReconnect: false, // Don't refetch on network reconnect
     retry: (failureCount, error) => {
       // Don't retry if user is not authenticated
       if (error instanceof Error && error.message.includes('not authenticated')) {
