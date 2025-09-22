@@ -45,8 +45,7 @@ function DashboardContent() {
 
   const activeMedia = media.filter((item: MediaItem) => 
     item.status === MediaStatus.InProgress || 
-    item.status === MediaStatus.Paused || 
-    item.status === MediaStatus.Archived
+    item.status === MediaStatus.Paused
   );
 
   if (error) {

@@ -27,7 +27,7 @@ export function Navigation() {
   const navigationItems = [
     { href: '/dashboard', label: 'Dashboard', active: pathname === '/dashboard' },
     { href: '/completed', label: 'Completed', active: pathname === '/completed' },
-    { href: '/settings', label: 'Settings', active: pathname === '/settings' },
+    { href: '/archived', label: 'Archived', active: pathname === '/archived' },
   ];
 
   return (
