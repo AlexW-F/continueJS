@@ -51,8 +51,12 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
   const form = useForm<AddMediaFormData>({
     resolver: zodResolver(addMediaSchema),
     defaultValues: {
+      name: '',
       mediaType: MediaType.Book,
+      coverArtUrl: '',
       currentProgress: 0,
+      totalProgress: undefined,
+      external: undefined,
     },
   });
 
@@ -61,8 +65,12 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
   useEffect(() => {
     if (step === 'type') {
       form.reset({
+        name: '',
         mediaType: MediaType.Book,
+        coverArtUrl: '',
         currentProgress: 0,
+        totalProgress: undefined,
+        external: undefined,
       });
       setSearchQuery('');
       setSearchResults([]);
@@ -161,7 +169,14 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
     onAdd(data);
     setOpen(false);
     setStep('type');
-    form.reset();
+    form.reset({
+      name: '',
+      mediaType: MediaType.Book,
+      coverArtUrl: '',
+      currentProgress: 0,
+      totalProgress: undefined,
+      external: undefined,
+    });
     toast.success('Media added successfully!');
   };
 
@@ -290,7 +305,7 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                   <FormItem>
                     <FormLabel>Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter name..." {...field} />
+                      <Input placeholder="Enter name..." value={field.value ?? ''} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -305,7 +320,7 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                     <FormItem>
                       <FormLabel>Cover Art URL (Optional)</FormLabel>
                       <FormControl>
-                        <Input placeholder="https://..." {...field} />
+                        <Input placeholder="https://..." value={field.value ?? ''} onChange={field.onChange} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -325,7 +340,7 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                           type="number" 
                           min="0"
                           placeholder="0"
-                          {...field}
+                          value={field.value ?? ''}
                           onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                         />
                       </FormControl>
@@ -345,7 +360,7 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                           type="number" 
                           min="1"
                           placeholder="100"
-                          {...field}
+                          value={field.value ?? ''}
                           onChange={(e) => field.onChange(parseInt(e.target.value) || undefined)}
                         />
                       </FormControl>
