@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { MediaItem, MediaType, MediaStatus, EditMediaFormData } from '@/lib/types';
+import { MediaItem, MediaType, MediaStatus, EditMediaFormData, SeasonInfo } from '@/lib/types';
+import { formatSeasonDisplay } from '@/lib/season-utils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Calendar, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const editMediaSchema = z.object({
@@ -26,6 +28,22 @@ const editMediaSchema = z.object({
     score: z.number().optional(),
     genres: z.array(z.string()).optional(),
     synopsis: z.string().optional(),
+    seasonInfo: z.object({
+      currentSeason: z.number().optional(),
+      totalSeasons: z.number().optional(),
+      seasonName: z.string().optional(),
+      episodesInSeason: z.number().optional(),
+      seasonYear: z.number().optional(),
+      seasonPeriod: z.string().optional(),
+    }).optional(),
+  }).optional(),
+  seasonInfo: z.object({
+    currentSeason: z.number().optional(),
+    totalSeasons: z.number().optional(),
+    seasonName: z.string().optional(),
+    episodesInSeason: z.number().optional(),
+    seasonYear: z.number().optional(),
+    seasonPeriod: z.string().optional(),
   }).optional(),
 });
 
@@ -37,6 +55,8 @@ interface EditMediaDialogProps {
 }
 
 export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMediaDialogProps) {
+  const [showSeasonCompleteMessage, setShowSeasonCompleteMessage] = useState(false);
+
   const form = useForm<EditMediaFormData>({
     resolver: zodResolver(editMediaSchema),
   });
@@ -52,9 +72,63 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
         currentProgress: media.progress?.current || 0,
         totalProgress: media.progress?.total || undefined,
         external: media.external,
+        seasonInfo: media.seasonInfo,
       });
+      setShowSeasonCompleteMessage(false);
     }
   }, [media, open, form]);
+
+  // Check if user has completed current season
+  useEffect(() => {
+    const currentProgress = form.watch('currentProgress');
+    const seasonInfo = form.getValues('seasonInfo');
+    
+    if (seasonInfo?.episodesInSeason && currentProgress === seasonInfo.episodesInSeason) {
+      const canAdvanceToNextSeason = !!(seasonInfo.currentSeason && seasonInfo.totalSeasons && 
+                                         seasonInfo.currentSeason < seasonInfo.totalSeasons);
+      setShowSeasonCompleteMessage(canAdvanceToNextSeason);
+    } else {
+      setShowSeasonCompleteMessage(false);
+    }
+  }, [form.watch('currentProgress')]);
+
+  const handleSeasonChange = (direction: 'prev' | 'next') => {
+    const seasonInfo = form.getValues('seasonInfo');
+    if (!seasonInfo?.currentSeason) return;
+
+    const newSeasonNumber = direction === 'next' 
+      ? seasonInfo.currentSeason + 1 
+      : seasonInfo.currentSeason - 1;
+
+    // Validate season bounds
+    if (newSeasonNumber < 1 || (seasonInfo.totalSeasons && newSeasonNumber > seasonInfo.totalSeasons)) {
+      return;
+    }
+
+    // Update season info
+    const updatedSeasonInfo = {
+      ...seasonInfo,
+      currentSeason: newSeasonNumber,
+      seasonName: `Season ${newSeasonNumber}`,
+    };
+
+    form.setValue('seasonInfo', updatedSeasonInfo);
+    
+    // Reset to episode 1 of the new season
+    form.setValue('currentProgress', 1);
+    
+    // Update total progress to the new season's episode count
+    if (seasonInfo.episodesInSeason) {
+      form.setValue('totalProgress', seasonInfo.episodesInSeason);
+    }
+
+    setShowSeasonCompleteMessage(false);
+    toast.success(`Advanced to Season ${newSeasonNumber}`);
+  };
+
+  const advanceToNextSeason = () => {
+    handleSeasonChange('next');
+  };
 
   const handleSubmit = (data: EditMediaFormData) => {
     onEdit(data);
@@ -64,7 +138,14 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
 
   if (!media) return null;
 
-  const getProgressLabel = (mediaType: MediaType) => {
+  const getProgressLabel = (mediaType: MediaType, seasonInfo?: SeasonInfo) => {
+    if ((mediaType === MediaType.Show || mediaType === MediaType.Anime) && seasonInfo?.currentSeason) {
+      return { 
+        current: `Episode in Season ${seasonInfo.currentSeason}`, 
+        total: `Episodes in Season ${seasonInfo.currentSeason}` 
+      };
+    }
+
     switch (mediaType) {
       case MediaType.Book:
         return { current: 'Current Page', total: 'Total Pages' };
@@ -79,7 +160,9 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
     }
   };
 
-  const progressLabels = getProgressLabel(form.watch('mediaType'));
+  const mediaType = form.watch('mediaType');
+  const seasonInfo = form.getValues('seasonInfo');
+  const progressLabels = getProgressLabel(mediaType, seasonInfo);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -171,6 +254,80 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
               )}
             />
 
+            {/* Season Information Display with Navigation */}
+            {(form.watch('mediaType') === MediaType.Show || form.watch('mediaType') === MediaType.Anime) && 
+             form.getValues('seasonInfo') && form.getValues('seasonInfo.currentSeason') && (
+              <div className="bg-muted/50 p-4 rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Calendar className="w-4 h-4" />
+                    <span className="font-medium">Season Information</span>
+                  </div>
+                  
+                  {/* Season Navigation Controls */}
+                  <div className="flex items-center space-x-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSeasonChange('prev')}
+                      disabled={!form.getValues('seasonInfo.currentSeason') || (form.getValues('seasonInfo.currentSeason') || 0) <= 1}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    
+                    <span className="text-sm font-medium min-w-[80px] text-center">
+                      Season {form.getValues('seasonInfo.currentSeason')}
+                    </span>
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSeasonChange('next')}
+                      disabled={!form.getValues('seasonInfo.currentSeason') || 
+                               !form.getValues('seasonInfo.totalSeasons') || 
+                               (form.getValues('seasonInfo.currentSeason') || 0) >= (form.getValues('seasonInfo.totalSeasons') || 0)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <div>{formatSeasonDisplay(form.getValues('seasonInfo')!)}</div>
+                  {form.getValues('seasonInfo.episodesInSeason') && (
+                    <div>Episodes in season: {form.getValues('seasonInfo.episodesInSeason')}</div>
+                  )}
+                </div>
+                
+                {/* Season Complete Message */}
+                {showSeasonCompleteMessage && (
+                  <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium text-green-800">Season Complete!</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-sm text-green-700">
+                        You've finished Season {form.getValues('seasonInfo.currentSeason')}. Ready for the next one?
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={advanceToNextSeason}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        Next Season
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -181,10 +338,19 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
                     <FormControl>
                       <Input 
                         type="number" 
-                        min="0"
-                        placeholder="0"
+                        min="1"
+                        max={seasonInfo?.episodesInSeason 
+                          ? seasonInfo.episodesInSeason 
+                          : form.getValues('totalProgress') || undefined}
+                        placeholder="1"
                         {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value) || 1;
+                          const maxValue = seasonInfo?.episodesInSeason 
+                            ? seasonInfo.episodesInSeason 
+                            : form.getValues('totalProgress') || Number.MAX_SAFE_INTEGER;
+                          field.onChange(Math.min(Math.max(value, 1), maxValue));
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -204,7 +370,15 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
                         min="1"
                         placeholder="100"
                         {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || undefined)}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value) || undefined;
+                          field.onChange(value);
+                          // Update current progress if it exceeds new total
+                          const currentProgress = form.getValues('currentProgress') || 0;
+                          if (value && currentProgress > value) {
+                            form.setValue('currentProgress', value);
+                          }
+                        }}
                       />
                     </FormControl>
                     <FormMessage />

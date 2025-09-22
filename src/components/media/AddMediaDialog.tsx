@@ -4,8 +4,14 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { MediaType, MediaStatus, AddMediaFormData, AnimeSearchResult, MangaSearchResult, ShowSearchResult, BookSearchResult } from '@/lib/types';
-import { searchService } from '@/lib/api';
+import { MediaType, MediaStatus, AddMediaFormData, AnimeSearchResult, MangaSearchResult, ShowSearchResult, ShowDetailsResult, BookSearchResult, SeasonInfo } from '@/lib/types';
+import { searchService, mediaService } from '@/lib/api';
+import { 
+  extractSeasonFromAnimeTitle, 
+  createSeasonInfoFromAnime, 
+  createSeasonInfoFromShow, 
+  getSeasonOptions 
+} from '@/lib/season-utils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Search, Loader2 } from 'lucide-react';
+import { Plus, Search, Loader2, Calendar, Hash } from 'lucide-react';
 import { toast } from 'sonner';
 import Image from 'next/image';
 import { v4 as uuidv4 } from 'uuid';
@@ -30,6 +36,22 @@ const addMediaSchema = z.object({
     score: z.number().optional(),
     genres: z.array(z.string()).optional(),
     synopsis: z.string().optional(),
+    seasonInfo: z.object({
+      currentSeason: z.number().optional(),
+      totalSeasons: z.number().optional(),
+      seasonName: z.string().optional(),
+      episodesInSeason: z.number().optional(),
+      seasonYear: z.number().optional(),
+      seasonPeriod: z.string().optional(),
+    }).optional(),
+  }).optional(),
+  seasonInfo: z.object({
+    currentSeason: z.number().optional(),
+    totalSeasons: z.number().optional(),
+    seasonName: z.string().optional(),
+    episodesInSeason: z.number().optional(),
+    seasonYear: z.number().optional(),
+    seasonPeriod: z.string().optional(),
   }).optional(),
 });
 
@@ -42,11 +64,13 @@ type SearchResult = AnimeSearchResult | MangaSearchResult | ShowSearchResult | B
 
 export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<'type' | 'search' | 'manual' | 'details'>('type');
+  const [step, setStep] = useState<'type' | 'search' | 'manual' | 'season' | 'details'>('type');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
+  const [showDetails, setShowDetails] = useState<ShowDetailsResult | null>(null);
+  const [isLoadingShowDetails, setIsLoadingShowDetails] = useState(false);
 
   const form = useForm<AddMediaFormData>({
     resolver: zodResolver(addMediaSchema),
@@ -57,6 +81,7 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
       currentProgress: 0,
       totalProgress: undefined,
       external: undefined,
+      seasonInfo: undefined,
     },
   });
 
@@ -71,10 +96,12 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
         currentProgress: 0,
         totalProgress: undefined,
         external: undefined,
+        seasonInfo: undefined,
       });
       setSearchQuery('');
       setSearchResults([]);
       setSelectedResult(null);
+      setShowDetails(null);
     }
   }, [step, form]);
 
@@ -112,41 +139,99 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
     }
   };
 
-  const handleSelectResult = (result: SearchResult) => {
+  const handleSelectResult = async (result: SearchResult) => {
     setSelectedResult(result);
     
     // Pre-fill form based on search result
     if ('mal_id' in result) {
       // Anime/Manga result
-      form.setValue('name', result.title || result.title_english || '');
-      form.setValue('coverArtUrl', result.images?.jpg?.image_url);
+      const animeResult = result as AnimeSearchResult;
+      const { cleanTitle } = extractSeasonFromAnimeTitle(animeResult.title);
+      
+      form.setValue('name', cleanTitle);
+      form.setValue('coverArtUrl', animeResult.images?.jpg?.image_url);
       
       // Handle episodes for anime, chapters for manga
-      if ('episodes' in result) {
-        form.setValue('totalProgress', result.episodes);
+      if ('episodes' in animeResult) {
+        form.setValue('totalProgress', animeResult.episodes);
       } else if ('chapters' in result) {
-        form.setValue('totalProgress', result.chapters);
+        form.setValue('totalProgress', (result as MangaSearchResult).chapters);
       }
       
-      form.setValue('external', {
-        id: result.mal_id.toString(),
-        source: 'MyAnimeList',
-        score: result.score,
-        genres: result.genres?.map(g => g.name),
-        synopsis: result.synopsis,
-      });
+      // Create season info for anime
+      if (animeResult.episodes !== undefined) {
+        const seasonInfo = createSeasonInfoFromAnime(animeResult);
+        form.setValue('seasonInfo', seasonInfo);
+        form.setValue('external', {
+          id: animeResult.mal_id.toString(),
+          source: 'MyAnimeList',
+          score: animeResult.score,
+          genres: animeResult.genres?.map(g => g.name),
+          synopsis: animeResult.synopsis,
+          seasonInfo,
+        });
+      } else {
+        form.setValue('external', {
+          id: animeResult.mal_id.toString(),
+          source: 'MyAnimeList',
+          score: animeResult.score,
+          genres: animeResult.genres?.map(g => g.name),
+          synopsis: animeResult.synopsis,
+        });
+      }
+      
+      // For anime with seasons, go to season selection, otherwise to details
+      if ((animeResult.episodes !== undefined) && (animeResult.title.includes('Season') || animeResult.title.includes('Part'))) {
+        setStep('season');
+      } else {
+        setStep('details');
+      }
     } else if ('id' in result && typeof result.id === 'number') {
-      // TV Show result
+      // TV Show result - fetch detailed info
       const show = result as ShowSearchResult;
-      form.setValue('name', show.name);
-      form.setValue('coverArtUrl', show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : undefined);
-      form.setValue('totalProgress', show.number_of_episodes);
-      form.setValue('external', {
-        id: show.id.toString(),
-        source: 'TMDB',
-        score: show.vote_average,
-        synopsis: show.overview,
-      });
+      setIsLoadingShowDetails(true);
+      
+      try {
+        const details = await mediaService.getShowDetails(show.id.toString());
+        setShowDetails(details);
+        
+        form.setValue('name', show.name);
+        form.setValue('coverArtUrl', show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : undefined);
+        form.setValue('totalProgress', details.number_of_episodes);
+        form.setValue('external', {
+          id: show.id.toString(),
+          source: 'TMDB',
+          score: show.vote_average,
+          synopsis: show.overview,
+        });
+        
+        // If multiple seasons, go to season selection
+        if (details.number_of_seasons > 1) {
+          setStep('season');
+        } else {
+          // Single season, create season info and go to details
+          const seasonInfo = createSeasonInfoFromShow(details, 1);
+          form.setValue('seasonInfo', seasonInfo);
+          form.setValue('totalProgress', seasonInfo.episodesInSeason);
+          setStep('details');
+        }
+      } catch (error) {
+        console.error('Failed to fetch show details:', error);
+        toast.error('Failed to load show details. Please try again.');
+        // Fall back to basic info
+        form.setValue('name', show.name);
+        form.setValue('coverArtUrl', show.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : undefined);
+        form.setValue('totalProgress', show.number_of_episodes);
+        form.setValue('external', {
+          id: show.id.toString(),
+          source: 'TMDB',
+          score: show.vote_average,
+          synopsis: show.overview,
+        });
+        setStep('details');
+      } finally {
+        setIsLoadingShowDetails(false);
+      }
     } else if ('volumeInfo' in result) {
       // Book result
       const book = result as BookSearchResult;
@@ -160,9 +245,8 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
         genres: book.volumeInfo.categories,
         synopsis: book.volumeInfo.description,
       });
+      setStep('details');
     }
-
-    setStep('details');
   };
 
   const handleSubmit = (data: AddMediaFormData) => {
@@ -176,8 +260,52 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
       currentProgress: 0,
       totalProgress: undefined,
       external: undefined,
+      seasonInfo: undefined,
     });
     toast.success('Media added successfully!');
+  };
+
+  const handleSeasonSelect = (seasonNumber: number) => {
+    if (showDetails) {
+      // For TV shows
+      const seasonInfo = createSeasonInfoFromShow(showDetails, seasonNumber);
+      form.setValue('seasonInfo', seasonInfo);
+      
+      // Set total progress to the current season's episode count (not entire show)
+      form.setValue('totalProgress', seasonInfo.episodesInSeason);
+      
+      // Set initial current progress to episode 1 of the selected season (in season terms)
+      form.setValue('currentProgress', 1); // Episode 1 of the selected season
+      
+      // Update external metadata with season info
+      const currentExternal = form.getValues('external');
+      form.setValue('external', {
+        ...currentExternal,
+        seasonInfo,
+      });
+    } else if (selectedResult && 'mal_id' in selectedResult) {
+      // For anime - update season info
+      const currentSeasonInfo = form.getValues('seasonInfo');
+      const updatedSeasonInfo = {
+        ...currentSeasonInfo,
+        currentSeason: seasonNumber,
+        seasonName: `Season ${seasonNumber}`,
+      };
+      form.setValue('seasonInfo', updatedSeasonInfo);
+      
+      // Set initial progress to episode 1 of the selected season
+      form.setValue('currentProgress', 1);
+      
+      // For anime, keep the single season episode count as total
+      // This assumes user is tracking just this season of the anime
+      const currentExternal = form.getValues('external');
+      form.setValue('external', {
+        ...currentExternal,
+        seasonInfo: updatedSeasonInfo,
+      });
+    }
+    
+    setStep('details');
   };
 
   const renderSearchResults = () => {
@@ -293,6 +421,105 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
           </div>
         );
 
+      case 'season':
+        return (
+          <div className="space-y-4">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold">{form.getValues('name')}</h3>
+              <p className="text-sm text-muted-foreground">Which season are you currently on?</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                All previous episodes will be marked as watched
+              </p>
+            </div>
+            
+            {isLoadingShowDetails ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+                <span className="ml-2">Loading season information...</span>
+              </div>
+            ) : showDetails ? (
+              // TV Show seasons
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {getSeasonOptions(showDetails).map((season) => (
+                  <Card key={season.value} className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSeasonSelect(season.value)}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium">{season.label}</h4>
+                          <p className="text-sm text-muted-foreground">{season.episodes} episodes</p>
+                        </div>
+                        <div className="flex items-center text-muted-foreground">
+                          <Hash className="w-4 h-4 mr-1" />
+                          <span>{season.value}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : selectedResult && 'mal_id' in selectedResult ? (
+              // Anime season input
+              <div className="space-y-4">
+                <div className="text-sm text-muted-foreground">
+                  This appears to be part of a series. Which season are you currently on?
+                  <br />
+                  <span className="text-xs">All previous episodes will be considered watched.</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {[1, 2, 3, 4, 5].map((seasonNum) => (
+                    <Button
+                      key={seasonNum}
+                      variant="outline"
+                      onClick={() => handleSeasonSelect(seasonNum)}
+                      className="h-16 flex flex-col items-center justify-center"
+                    >
+                      <Hash className="w-4 h-4 mb-1" />
+                      Season {seasonNum}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="Other season number..."
+                    className="flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const value = parseInt((e.target as HTMLInputElement).value);
+                        if (value && value > 0) {
+                          handleSeasonSelect(value);
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={(e) => {
+                      const input = (e.target as HTMLElement).previousElementSibling as HTMLInputElement;
+                      const value = parseInt(input.value);
+                      if (value && value > 0) {
+                        handleSeasonSelect(value);
+                      }
+                    }}
+                  >
+                    Select
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+            
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep('search')}>
+                Back
+              </Button>
+              <Button variant="outline" onClick={() => setStep('details')} className="flex-1">
+                Skip Season Selection
+              </Button>
+            </div>
+          </div>
+        );
+
       case 'manual':
       case 'details':
         return (
@@ -328,20 +555,70 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                 />
               )}
 
+              {/* Season Information Display */}
+              {(mediaType === MediaType.Show || mediaType === MediaType.Anime) && form.getValues('seasonInfo') && (
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Calendar className="w-4 h-4" />
+                    <span className="font-medium">Season Information</span>
+                  </div>
+                  <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                    {form.getValues('seasonInfo.seasonName') && (
+                      <div>Season: {form.getValues('seasonInfo.seasonName')}</div>
+                    )}
+                    {form.getValues('seasonInfo.episodesInSeason') && (
+                      <div>Episodes: {form.getValues('seasonInfo.episodesInSeason')}</div>
+                    )}
+                    {form.getValues('seasonInfo.seasonYear') && (
+                      <div>Year: {form.getValues('seasonInfo.seasonYear')}</div>
+                    )}
+                    {form.getValues('seasonInfo.seasonPeriod') && (
+                      <div>Period: {form.getValues('seasonInfo.seasonPeriod')}</div>
+                    )}
+                  </div>
+                  {(showDetails?.number_of_seasons || 0) > 1 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => setStep('season')}
+                    >
+                      Change Season
+                    </Button>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="currentProgress"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Current Progress</FormLabel>
+                      <FormLabel>
+                        {(mediaType === MediaType.Show || mediaType === MediaType.Anime) && form.getValues('seasonInfo') 
+                          ? `Episode in ${form.getValues('seasonInfo')?.seasonName || 'Season'}` 
+                          : 'Current Progress'
+                        }
+                      </FormLabel>
                       <FormControl>
                         <Input 
                           type="number" 
-                          min="0"
-                          placeholder="0"
+                          min="1"
+                          max={(mediaType === MediaType.Show || mediaType === MediaType.Anime) && form.getValues('seasonInfo') 
+                            ? form.getValues('seasonInfo')?.episodesInSeason 
+                            : form.getValues('totalProgress') || undefined}
+                          placeholder="1"
                           value={field.value ?? ''}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value) || 1;
+                            const seasonInfo = form.getValues('seasonInfo');
+                            const maxValue = (mediaType === MediaType.Show || mediaType === MediaType.Anime) && seasonInfo 
+                              ? seasonInfo.episodesInSeason || 12
+                              : form.getValues('totalProgress') || Number.MAX_SAFE_INTEGER;
+                            field.onChange(Math.min(Math.max(value, 1), maxValue));
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -354,14 +631,27 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                   name="totalProgress"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Total Progress</FormLabel>
+                      <FormLabel>
+                        {(mediaType === MediaType.Show || mediaType === MediaType.Anime) && form.getValues('seasonInfo') 
+                          ? `Episodes in ${form.getValues('seasonInfo')?.seasonName || 'Season'}` 
+                          : 'Total Progress'
+                        }
+                      </FormLabel>
                       <FormControl>
                         <Input 
                           type="number" 
                           min="1"
-                          placeholder="100"
+                          placeholder={form.getValues('seasonInfo')?.episodesInSeason?.toString() || "100"}
                           value={field.value ?? ''}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || undefined)}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value) || undefined;
+                            field.onChange(value);
+                            // Update current progress if it exceeds new total
+                            const currentProgress = form.getValues('currentProgress') || 0;
+                            if (value && currentProgress > value) {
+                              form.setValue('currentProgress', value);
+                            }
+                          }}
                         />
                       </FormControl>
                       <FormMessage />

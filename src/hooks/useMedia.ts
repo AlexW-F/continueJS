@@ -65,6 +65,7 @@ export function useAddMedia() {
           total: data.totalProgress,
         },
         external: data.external,
+        seasonInfo: data.seasonInfo, // Add the missing seasonInfo field
       };
 
       // Send the complete media item to the API (including the UUID)
@@ -116,7 +117,12 @@ export function useUpdateMedia() {
           current: data.currentProgress || 0,
           total: data.totalProgress,
         },
-        external: data.external,
+        external: {
+          ...currentMedia.external,
+          ...data.external,
+          seasonInfo: data.seasonInfo, // Merge seasonInfo into external
+        },
+        seasonInfo: data.seasonInfo, // Also keep it at top level for components
         datePaused: data.status === MediaStatus.Paused ? new Date() : currentMedia.datePaused,
       };
 
@@ -129,7 +135,11 @@ export function useUpdateMedia() {
         coverArtUrl: data.coverArtUrl,
         currentProgress: data.currentProgress,
         totalProgress: data.totalProgress,
-        external: data.external,
+        external: {
+          ...currentMedia.external,
+          ...data.external,
+          seasonInfo: data.seasonInfo, // Ensure seasonInfo is stored in external
+        },
       };
 
       await mediaService.updateMedia(apiData);

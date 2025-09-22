@@ -3,6 +3,7 @@ import {
   AnimeSearchResult,
   MangaSearchResult,
   ShowSearchResult,
+  ShowDetailsResult,
   BookSearchResult,
   MediaType,
   MediaStatus,
@@ -131,6 +132,10 @@ class ApiService {
 
   async searchBooks(query: string): Promise<BookSearchResult[]> {
     return this.request<BookSearchResult[]>(`/search/books?query=${encodeURIComponent(query)}`);
+  }
+
+  async getShowDetails(id: string): Promise<ShowDetailsResult> {
+    return this.request<ShowDetailsResult>(`/media/show-details/${id}`);
   }
 }
 

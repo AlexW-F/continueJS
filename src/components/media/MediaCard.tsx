@@ -8,11 +8,12 @@ import {
   shouldShowProgressBar,
   getProgressBarColor 
 } from '@/lib/media-utils';
+import { formatSeasonDisplay } from '@/lib/season-utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Edit, Trash2 } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, Calendar } from 'lucide-react';
 import { useState } from 'react';
 import Image from 'next/image';
 
@@ -73,9 +74,19 @@ export function MediaCard({ media, onEdit, onDelete, className }: MediaCardProps
                 <h3 className="font-medium text-sm leading-tight truncate">
                   {media.name || 'Untitled'}
                 </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {media.mediaType}
-                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-xs text-muted-foreground">
+                    {media.mediaType}
+                  </p>
+                  {/* Season Information */}
+                  {(media.mediaType === MediaType.Show || media.mediaType === MediaType.Anime) && 
+                   media.seasonInfo && media.seasonInfo.currentSeason && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Calendar className="w-3 h-3" />
+                      <span>{formatSeasonDisplay(media.seasonInfo)}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Actions */}
@@ -106,7 +117,7 @@ export function MediaCard({ media, onEdit, onDelete, className }: MediaCardProps
               <div className="mt-3">
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span>{getProgressText()}</span>
-                  <span className="font-medium">{getProgressPercentage(media)}%</span>
+                  <span className="font-medium">{getProgressPercentage(media).toFixed(1)}%</span>
                 </div>
                 <Progress 
                   value={getProgressPercentage(media)} 

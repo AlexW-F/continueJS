@@ -18,12 +18,22 @@ export interface ProgressData {
   total?: number;
 }
 
+export interface SeasonInfo {
+  currentSeason?: number;           // Which season the user is watching/reading
+  totalSeasons?: number;            // Total seasons available
+  seasonName?: string;              // Custom season name (e.g., "Final Season Part 1")
+  episodesInSeason?: number;        // Episodes in current season
+  seasonYear?: number;              // Year the season aired
+  seasonPeriod?: string;            // Spring/Summer/Fall/Winter for anime
+}
+
 export interface ExternalMetadata {
   id?: string;
   source?: string;
   score?: number;
   genres?: string[];
   synopsis?: string;
+  seasonInfo?: SeasonInfo;          // Season-specific metadata
 }
 
 export interface MediaItem {
@@ -35,6 +45,9 @@ export interface MediaItem {
   dateAdded: Date;               // Date object (converted from ISO string)
   datePaused?: Date;             // Date object (nullable, converted from ISO string)
   coverArtUrl?: string;          // Image URL (nullable)
+  
+  // SEASON TRACKING (for Shows/Anime)
+  seasonInfo?: SeasonInfo;       // Season-specific information
   
   // DYNAMIC PROGRESS TRACKING
   progress?: ProgressData;       // Primary progress (meaning varies by type)
@@ -70,6 +83,8 @@ export interface AnimeSearchResult {
   synopsis?: string;
   status?: string;
   type?: string;
+  season?: string;              // Spring/Summer/Fall/Winter
+  year?: number;                // Year aired
 }
 
 export interface MangaSearchResult {
@@ -103,6 +118,26 @@ export interface ShowSearchResult {
   genre_ids?: number[];
   number_of_seasons?: number;
   number_of_episodes?: number;
+}
+
+// Extended show details from TMDB TV endpoint
+export interface ShowDetailsResult {
+  id: number;
+  name: string;
+  overview?: string;
+  poster_path?: string;
+  backdrop_path?: string;
+  first_air_date?: string;
+  vote_average?: number;
+  number_of_seasons: number;
+  number_of_episodes: number;
+  seasons: Array<{
+    season_number: number;
+    name: string;
+    episode_count: number;
+    air_date?: string;
+    poster_path?: string;
+  }>;
 }
 
 export interface BookSearchResult {
@@ -154,6 +189,7 @@ export interface AddMediaFormData {
   currentProgress?: number;
   totalProgress?: number;
   external?: ExternalMetadata;
+  seasonInfo?: SeasonInfo;
 }
 
 export interface EditMediaFormData extends AddMediaFormData {
