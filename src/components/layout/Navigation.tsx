@@ -25,7 +25,7 @@ export function Navigation() {
   };
 
   const navigationItems = [
-    { href: '/dashboard', label: 'Dashboard', active: pathname === '/dashboard' },
+    { href: '/dashboard', label: 'Active', active: pathname === '/dashboard' },
     { href: '/completed', label: 'Completed', active: pathname === '/completed' },
     { href: '/archived', label: 'Archived', active: pathname === '/archived' },
   ];

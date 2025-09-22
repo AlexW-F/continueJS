@@ -106,8 +106,6 @@ function KanbanColumnComponent({ column, onEdit, onDelete }: KanbanColumnProps) 
               <p className="text-xs mt-1">
                 {column.id === MediaStatus.InProgress && "Start tracking your media progress!"}
                 {column.id === MediaStatus.Paused && "Paused items will appear here"}
-                {column.id === MediaStatus.Archived && "Archived items will appear here"}
-                {column.id === MediaStatus.Completed && "Completed items will appear here"}
               </p>
             </div>
           ) : (
@@ -163,18 +161,6 @@ export function KanbanBoard({ media, onUpdateStatus, onEdit, onDelete }: KanbanB
         title: 'Paused',
         items: groupedMedia[MediaStatus.Paused] || [],
         color: '#eab308', // yellow-500
-      },
-      {
-        id: MediaStatus.Archived,
-        title: 'Archived',
-        items: groupedMedia[MediaStatus.Archived] || [],
-        color: '#6b7280', // gray-500
-      },
-      {
-        id: MediaStatus.Completed,
-        title: 'Completed',
-        items: groupedMedia[MediaStatus.Completed] || [],
-        color: '#10b981', // green-500
       },
     ];
   }, [media]);
