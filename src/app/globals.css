@@ -142,11 +142,22 @@
   background-image: repeating-linear-gradient(
     45deg,
     transparent,
-    transparent 8px,
-    rgba(255, 255, 255, 0.1) 8px,
-    rgba(255, 255, 255, 0.1) 16px
+    transparent 6px,
+    rgba(0, 0, 0, 0.08) 6px,
+    rgba(0, 0, 0, 0.08) 12px
   );
   animation: progress-bar-stripes 2s linear infinite;
+}
+
+/* Dark mode specific styling for better contrast */
+.dark .progress-striped {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 6px,
+    rgba(255, 255, 255, 0.12) 6px,
+    rgba(255, 255, 255, 0.12) 12px
+  );
 }
 
 @keyframes progress-bar-stripes {
@@ -154,25 +165,25 @@
     background-position: 0 0;
   }
   100% {
-    background-position: 32px 0;
+    background-position: 24px 0;
   }
 }
 
 /* Status-based progress bar colors */
-.progress-in-progress {
+.progress-in-progress [data-slot="progress-indicator"] {
   @apply bg-blue-500;
 }
 
-.progress-paused {
+.progress-paused [data-slot="progress-indicator"] {
   @apply bg-yellow-500;
 }
 
-.progress-completed {
+.progress-completed [data-slot="progress-indicator"] {
   @apply bg-green-500;
 }
 
-.progress-archived {
-  @apply bg-gray-500;
+.progress-archived [data-slot="progress-indicator"] {
+  @apply bg-red-500;
 }
 
 /* Custom scrollbar */

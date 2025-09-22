@@ -110,7 +110,13 @@ export function MediaCard({ media, onEdit, onDelete, className }: MediaCardProps
                 </div>
                 <Progress 
                   value={getProgressPercentage(media)} 
-                  className={`h-2 ${media.status === MediaStatus.InProgress ? 'progress-striped' : ''}`}
+                  className={`h-2 ${
+                    media.status === MediaStatus.InProgress ? 'progress-striped progress-in-progress' : 
+                    media.status === MediaStatus.Paused ? 'progress-paused' :
+                    media.status === MediaStatus.Completed ? 'progress-completed' :
+                    media.status === MediaStatus.Archived ? 'progress-archived' :
+                    ''
+                  }`}
                 />
               </div>
             )}
