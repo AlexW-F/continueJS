@@ -142,11 +142,12 @@ function ArchivedContent() {
         </div>
 
         {/* Filters and Sort */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="flex-1">
+        <div className="flex flex-wrap gap-4 mb-6">
+          <div className="flex items-center gap-2">
+            <label htmlFor="filter-type" className="text-sm font-medium">Filter:</label>
             <Select value={filterType} onValueChange={(value) => setFilterType(value as 'all' | MediaType)}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filter by type" />
+              <SelectTrigger className="w-32">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
@@ -158,10 +159,11 @@ function ArchivedContent() {
             </Select>
           </div>
           
-          <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <label htmlFor="sort-by" className="text-sm font-medium">Sort by:</label>
             <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'dateAdded' | 'name' | 'type')}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Sort by" />
+              <SelectTrigger className="w-32">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="dateAdded">Date Added</SelectItem>
