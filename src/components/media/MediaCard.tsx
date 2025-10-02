@@ -149,8 +149,7 @@ export function MediaCard({ media, onEdit, onDelete, onMarkCompleted, className 
                 <Button
                   onClick={handleMarkCompleted}
                   size="sm"
-                  className="w-full h-8 text-xs"
-                  variant="default"
+                  className="w-full h-8 text-xs bg-green-600 hover:bg-green-700 text-white"
                 >
                   <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
                   Mark as Completed

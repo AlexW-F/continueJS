@@ -503,18 +503,21 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
                     <FormControl>
                       <Input 
                         type="number" 
-                        min="1"
+                        min="0"
                         max={seasonInfo?.episodesInSeason 
                           ? seasonInfo.episodesInSeason 
                           : form.getValues('totalProgress') || undefined}
-                        placeholder="1"
+                        placeholder="0"
                         {...field}
+                        value={field.value ?? ''}
                         onChange={(e) => {
-                          const value = parseInt(e.target.value) || 1;
-                          const maxValue = seasonInfo?.episodesInSeason 
-                            ? seasonInfo.episodesInSeason 
-                            : form.getValues('totalProgress') || Number.MAX_SAFE_INTEGER;
-                          field.onChange(Math.min(Math.max(value, 1), maxValue));
+                          const value = e.target.value === '' ? 0 : parseInt(e.target.value);
+                          if (!isNaN(value)) {
+                            const maxValue = seasonInfo?.episodesInSeason 
+                              ? seasonInfo.episodesInSeason 
+                              : form.getValues('totalProgress') || Number.MAX_SAFE_INTEGER;
+                            field.onChange(Math.min(Math.max(value, 0), maxValue));
+                          }
                         }}
                       />
                     </FormControl>
@@ -535,13 +538,16 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
                         min="1"
                         placeholder="100"
                         {...field}
+                        value={field.value ?? ''}
                         onChange={(e) => {
-                          const value = parseInt(e.target.value) || undefined;
-                          field.onChange(value);
-                          // Update current progress if it exceeds new total
-                          const currentProgress = form.getValues('currentProgress') || 0;
-                          if (value && currentProgress > value) {
-                            form.setValue('currentProgress', value);
+                          const value = e.target.value === '' ? undefined : parseInt(e.target.value);
+                          if (value === undefined || !isNaN(value)) {
+                            field.onChange(value);
+                            // Update current progress if it exceeds new total
+                            const currentProgress = form.getValues('currentProgress') || 0;
+                            if (value && currentProgress > value) {
+                              form.setValue('currentProgress', value);
+                            }
                           }
                         }}
                       />

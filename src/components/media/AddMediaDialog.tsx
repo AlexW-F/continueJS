@@ -396,20 +396,48 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
     switch (step) {
       case 'type':
         return (
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div>
-              <Label htmlFor="mediaType">Media Type</Label>
-              <Select value={mediaType} onValueChange={(value) => form.setValue('mediaType', value as MediaType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={MediaType.Book}>Book</SelectItem>
-                  <SelectItem value={MediaType.Anime}>Anime</SelectItem>
-                  <SelectItem value={MediaType.Manga}>Manga</SelectItem>
-                  <SelectItem value={MediaType.Show}>TV Show</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="mb-3 block">Media Type</Label>
+              <div className="relative bg-muted rounded-lg p-1">
+                {/* Animated background indicator */}
+                <div
+                  className="absolute top-1 bottom-1 rounded-md bg-primary transition-all duration-300 ease-in-out"
+                  style={{
+                    width: 'calc(25% - 4px)',
+                    left: `calc(${
+                      mediaType === MediaType.Book ? '0.25rem' :
+                      mediaType === MediaType.Anime ? 'calc(25% + 0.25rem)' :
+                      mediaType === MediaType.Manga ? 'calc(50% + 0.25rem)' :
+                      'calc(75% + 0.25rem)'
+                    })`,
+                  }}
+                />
+                {/* Media type buttons */}
+                <div className="relative grid grid-cols-4 gap-1">
+                  {[
+                    { value: MediaType.Book, label: 'Book' },
+                    { value: MediaType.Anime, label: 'Anime' },
+                    { value: MediaType.Manga, label: 'Manga' },
+                    { value: MediaType.Show, label: 'TV Show' },
+                  ].map((type) => (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => {
+                        form.setValue('mediaType', type.value);
+                      }}
+                      className={`relative z-10 px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${
+                        mediaType === type.value
+                          ? 'text-primary-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
             <div className="flex gap-2">
               <Button onClick={() => setStep('search')} className="flex-1">
@@ -689,17 +717,20 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                             max="20"
                             value={seasonCount}
                             onChange={(e) => {
-                              const count = Math.max(1, Math.min(20, parseInt(e.target.value) || 1));
-                              setSeasonCount(count);
-                              // Adjust seasonEpisodes array
-                              const newEpisodes = [...seasonEpisodes];
-                              while (newEpisodes.length < count) {
-                                newEpisodes.push(12);
-                              }
-                              setSeasonEpisodes(newEpisodes.slice(0, count));
-                              // Adjust current season if needed
-                              if (currentSeason > count) {
-                                setCurrentSeason(count);
+                              const val = e.target.value === '' ? 1 : parseInt(e.target.value);
+                              if (!isNaN(val)) {
+                                const count = Math.max(1, Math.min(20, val));
+                                setSeasonCount(count);
+                                // Adjust seasonEpisodes array
+                                const newEpisodes = [...seasonEpisodes];
+                                while (newEpisodes.length < count) {
+                                  newEpisodes.push(12);
+                                }
+                                setSeasonEpisodes(newEpisodes.slice(0, count));
+                                // Adjust current season if needed
+                                if (currentSeason > count) {
+                                  setCurrentSeason(count);
+                                }
                               }
                             }}
                             className="mt-1"
@@ -719,9 +750,12 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                                   max="999"
                                   value={seasonEpisodes[i] || 12}
                                   onChange={(e) => {
-                                    const newEpisodes = [...seasonEpisodes];
-                                    newEpisodes[i] = Math.max(1, parseInt(e.target.value) || 12);
-                                    setSeasonEpisodes(newEpisodes);
+                                    const val = e.target.value === '' ? 1 : parseInt(e.target.value);
+                                    if (!isNaN(val)) {
+                                      const newEpisodes = [...seasonEpisodes];
+                                      newEpisodes[i] = Math.max(1, val);
+                                      setSeasonEpisodes(newEpisodes);
+                                    }
                                   }}
                                   className="h-8 text-sm"
                                 />
@@ -765,8 +799,11 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                             max={seasonEpisodes[currentSeason - 1] || 12}
                             value={currentEpisodeInSeason}
                             onChange={(e) => {
-                              const max = seasonEpisodes[currentSeason - 1] || 12;
-                              setCurrentEpisodeInSeason(Math.max(0, Math.min(max, parseInt(e.target.value) || 0)));
+                              const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                              if (!isNaN(val)) {
+                                const max = seasonEpisodes[currentSeason - 1] || 12;
+                                setCurrentEpisodeInSeason(Math.max(0, Math.min(max, val)));
+                              }
                             }}
                             className="mt-1"
                           />
@@ -818,19 +855,22 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                       <FormControl>
                         <Input 
                           type="number" 
-                          min="1"
+                          min="0"
                           max={(mediaType === MediaType.Show || mediaType === MediaType.Anime) && form.getValues('seasonInfo') 
                             ? form.getValues('seasonInfo')?.episodesInSeason 
                             : form.getValues('totalProgress') || undefined}
-                          placeholder="1"
+                          placeholder="0"
+                          {...field}
                           value={field.value ?? ''}
                           onChange={(e) => {
-                            const value = parseInt(e.target.value) || 1;
-                            const seasonInfo = form.getValues('seasonInfo');
-                            const maxValue = (mediaType === MediaType.Show || mediaType === MediaType.Anime) && seasonInfo 
-                              ? seasonInfo.episodesInSeason || 12
-                              : form.getValues('totalProgress') || Number.MAX_SAFE_INTEGER;
-                            field.onChange(Math.min(Math.max(value, 1), maxValue));
+                            const value = e.target.value === '' ? 0 : parseInt(e.target.value);
+                            if (!isNaN(value)) {
+                              const seasonInfo = form.getValues('seasonInfo');
+                              const maxValue = (mediaType === MediaType.Show || mediaType === MediaType.Anime) && seasonInfo 
+                                ? seasonInfo.episodesInSeason || 12
+                                : form.getValues('totalProgress') || Number.MAX_SAFE_INTEGER;
+                              field.onChange(Math.min(Math.max(value, 0), maxValue));
+                            }
                           }}
                         />
                       </FormControl>
@@ -855,14 +895,17 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                           type="number" 
                           min="1"
                           placeholder={form.getValues('seasonInfo')?.episodesInSeason?.toString() || "100"}
+                          {...field}
                           value={field.value ?? ''}
                           onChange={(e) => {
-                            const value = parseInt(e.target.value) || undefined;
-                            field.onChange(value);
-                            // Update current progress if it exceeds new total
-                            const currentProgress = form.getValues('currentProgress') || 0;
-                            if (value && currentProgress > value) {
-                              form.setValue('currentProgress', value);
+                            const value = e.target.value === '' ? undefined : parseInt(e.target.value);
+                            if (value === undefined || !isNaN(value)) {
+                              field.onChange(value);
+                              // Update current progress if it exceeds new total
+                              const currentProgress = form.getValues('currentProgress') || 0;
+                              if (value && currentProgress > value) {
+                                form.setValue('currentProgress', value);
+                              }
                             }
                           }}
                         />
@@ -905,19 +948,21 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {step === 'type' && 'Add New Media'}
             {step === 'search' && `Search ${mediaType}`}
             {step === 'manual' && `Add ${mediaType} Manually`}
             {step === 'details' && `Add ${mediaType}`}
+            {step === 'season' && 'Select Season'}
           </DialogTitle>
           <DialogDescription>
             {step === 'type' && 'Choose the type of media you want to add to your collection.'}
             {step === 'search' && `Search for ${mediaType} to add from external sources.`}
             {step === 'manual' && `Manually enter details for your ${mediaType}.`}
             {step === 'details' && `Review and confirm the details for your ${mediaType}.`}
+            {step === 'season' && 'Select which season you want to track.'}
           </DialogDescription>
         </DialogHeader>
         {renderStepContent()}
