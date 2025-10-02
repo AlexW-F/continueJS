@@ -68,27 +68,47 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
 
   useEffect(() => {
     if (media && open) {
+      // Initialize season editing state first
+      let initialSeasonEpisodes: number[] = [];
+      if (media.seasonInfo?.seasonEpisodes) {
+        initialSeasonEpisodes = media.seasonInfo.seasonEpisodes;
+        setSeasonCount(media.seasonInfo.seasonEpisodes.length);
+        setSeasonEpisodes(media.seasonInfo.seasonEpisodes);
+      } else if (media.seasonInfo?.totalSeasons && media.seasonInfo?.episodesInSeason) {
+        initialSeasonEpisodes = Array(media.seasonInfo.totalSeasons).fill(media.seasonInfo.episodesInSeason);
+        setSeasonCount(media.seasonInfo.totalSeasons);
+        setSeasonEpisodes(initialSeasonEpisodes);
+      }
+      
+      // For season-tracked items, convert absolute progress to relative (episode within season)
+      let displayCurrentProgress = media.progress?.current || 0;
+      let displayTotalProgress = media.progress?.total || undefined;
+      
+      if (media.seasonInfo?.seasonEpisodes && media.seasonInfo.currentSeason) {
+        const currentSeason = media.seasonInfo.currentSeason;
+        const absoluteProgress = media.progress?.current || 0;
+        
+        // Calculate episode within current season
+        const episodesInPreviousSeasons = initialSeasonEpisodes
+          .slice(0, currentSeason - 1)
+          .reduce((sum, eps) => sum + eps, 0);
+        
+        displayCurrentProgress = absoluteProgress - episodesInPreviousSeasons;
+        displayTotalProgress = initialSeasonEpisodes[currentSeason - 1];
+      }
+      
       form.reset({
         mediaItemId: media.mediaItemId,
         name: media.name || '',
         mediaType: media.mediaType,
         status: media.status,
         coverArtUrl: media.coverArtUrl || '',
-        currentProgress: media.progress?.current || 0,
-        totalProgress: media.progress?.total || undefined,
+        currentProgress: displayCurrentProgress,
+        totalProgress: displayTotalProgress,
         external: media.external,
         seasonInfo: media.seasonInfo,
       });
       setShowSeasonCompleteMessage(false);
-      
-      // Initialize season editing state
-      if (media.seasonInfo?.seasonEpisodes) {
-        setSeasonCount(media.seasonInfo.seasonEpisodes.length);
-        setSeasonEpisodes(media.seasonInfo.seasonEpisodes);
-      } else if (media.seasonInfo?.totalSeasons && media.seasonInfo?.episodesInSeason) {
-        setSeasonCount(media.seasonInfo.totalSeasons);
-        setSeasonEpisodes(Array(media.seasonInfo.totalSeasons).fill(media.seasonInfo.episodesInSeason));
-      }
     }
   }, [media, open, form]);
 
@@ -119,11 +139,18 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
       return;
     }
 
+    // Get episodes in the new season
+    let episodesInNewSeason = seasonInfo.episodesInSeason || 12;
+    if (seasonInfo.seasonEpisodes && seasonInfo.seasonEpisodes[newSeasonNumber - 1]) {
+      episodesInNewSeason = seasonInfo.seasonEpisodes[newSeasonNumber - 1];
+    }
+
     // Update season info
     const updatedSeasonInfo = {
       ...seasonInfo,
       currentSeason: newSeasonNumber,
       seasonName: `Season ${newSeasonNumber}`,
+      episodesInSeason: episodesInNewSeason,
     };
 
     form.setValue('seasonInfo', updatedSeasonInfo);
@@ -132,9 +159,7 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
     form.setValue('currentProgress', 1);
     
     // Update total progress to the new season's episode count
-    if (seasonInfo.episodesInSeason) {
-      form.setValue('totalProgress', seasonInfo.episodesInSeason);
-    }
+    form.setValue('totalProgress', episodesInNewSeason);
 
     setShowSeasonCompleteMessage(false);
     toast.success(`Advanced to Season ${newSeasonNumber}`);
@@ -165,13 +190,7 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
 
   const applySeasonEdits = () => {
     const currentSeason = form.getValues('seasonInfo.currentSeason') || 1;
-    const totalEpisodes = seasonEpisodes.reduce((sum, eps) => sum + eps, 0);
     const currentProgress = form.getValues('currentProgress') || 0;
-    
-    // Calculate absolute progress based on current season and episode
-    const episodesInPreviousSeasons = seasonEpisodes
-      .slice(0, currentSeason - 1)
-      .reduce((sum, eps) => sum + eps, 0);
     
     // Update form with new season info
     form.setValue('seasonInfo', {
@@ -181,8 +200,14 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
       seasonEpisodes: seasonEpisodes,
     });
     
-    form.setValue('currentProgress', episodesInPreviousSeasons + currentProgress);
-    form.setValue('totalProgress', totalEpisodes);
+    // Update totalProgress to show episodes in current season (for display purposes)
+    // The actual total will be calculated in handleSubmit
+    form.setValue('totalProgress', seasonEpisodes[currentSeason - 1]);
+    
+    // Ensure currentProgress doesn't exceed episodes in current season
+    if (currentProgress > seasonEpisodes[currentSeason - 1]) {
+      form.setValue('currentProgress', seasonEpisodes[currentSeason - 1]);
+    }
     
     setEditingSeasons(false);
     toast.success('Season information updated!');
