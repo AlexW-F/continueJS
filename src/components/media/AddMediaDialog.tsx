@@ -71,6 +71,13 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
   const [showDetails, setShowDetails] = useState<ShowDetailsResult | null>(null);
   const [isLoadingShowDetails, setIsLoadingShowDetails] = useState(false);
+  
+  // Anime season tracking state
+  const [useSeasonTracking, setUseSeasonTracking] = useState(false);
+  const [seasonCount, setSeasonCount] = useState(1);
+  const [seasonEpisodes, setSeasonEpisodes] = useState<number[]>([12]);
+  const [currentSeason, setCurrentSeason] = useState(1);
+  const [currentEpisodeInSeason, setCurrentEpisodeInSeason] = useState(0);
 
   const form = useForm<AddMediaFormData>({
     resolver: zodResolver(addMediaSchema),
@@ -151,26 +158,8 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
       form.setValue('name', cleanTitle);
       form.setValue('coverArtUrl', animeResult.images?.jpg?.image_url);
       
-      // Handle episodes for anime, chapters for manga
-      if ('episodes' in animeResult) {
-        form.setValue('totalProgress', animeResult.episodes);
-      } else if ('chapters' in result) {
-        form.setValue('totalProgress', (result as MangaSearchResult).chapters);
-      }
-      
-      // Create season info for anime
-      if (animeResult.episodes !== undefined) {
-        const seasonInfo = createSeasonInfoFromAnime(animeResult);
-        form.setValue('seasonInfo', seasonInfo);
-        form.setValue('external', {
-          id: animeResult.mal_id.toString(),
-          source: 'MyAnimeList',
-          score: animeResult.score,
-          genres: animeResult.genres?.map(g => g.name),
-          synopsis: animeResult.synopsis,
-          seasonInfo,
-        });
-      } else {
+      // Store external info but don't auto-fill progress - let user choose
+      if (animeResult.episodes !== undefined || 'chapters' in result) {
         form.setValue('external', {
           id: animeResult.mal_id.toString(),
           source: 'MyAnimeList',
@@ -180,12 +169,8 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
         });
       }
       
-      // For anime with seasons, go to season selection, otherwise to details
-      if ((animeResult.episodes !== undefined) && (animeResult.title.includes('Season') || animeResult.title.includes('Part'))) {
-        setStep('season');
-      } else {
-        setStep('details');
-      }
+      // For anime/manga from search, go directly to details (which now includes manual tracking options)
+      setStep('details');
     } else if ('id' in result && typeof result.id === 'number') {
       // TV Show result - fetch detailed info
       const show = result as ShowSearchResult;
@@ -250,9 +235,31 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
   };
 
   const handleSubmit = (data: AddMediaFormData) => {
+    // Process anime season tracking if enabled (for both manual and automatic/details)
+    if (mediaType === MediaType.Anime && (step === 'manual' || step === 'details') && useSeasonTracking) {
+      const totalEpisodes = seasonEpisodes.reduce((sum, eps) => sum + eps, 0);
+      const episodesWatchedInPreviousSeasons = seasonEpisodes
+        .slice(0, currentSeason - 1)
+        .reduce((sum, eps) => sum + eps, 0);
+      const totalEpisodesWatched = episodesWatchedInPreviousSeasons + currentEpisodeInSeason;
+      
+      // Store absolute progress across all seasons
+      data.currentProgress = totalEpisodesWatched;
+      data.totalProgress = totalEpisodes;
+      data.seasonInfo = {
+        currentSeason,
+        totalSeasons: seasonCount,
+        seasonName: `Season ${currentSeason}`,
+        episodesInSeason: seasonEpisodes[currentSeason - 1],
+        seasonEpisodes: seasonEpisodes, // Store full episode breakdown
+      };
+    }
+    
     onAdd(data);
     setOpen(false);
     setStep('type');
+    
+    // Reset all state
     form.reset({
       name: '',
       mediaType: MediaType.Book,
@@ -262,6 +269,12 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
       external: undefined,
       seasonInfo: undefined,
     });
+    setUseSeasonTracking(false);
+    setSeasonCount(1);
+    setSeasonEpisodes([12]);
+    setCurrentSeason(1);
+    setCurrentEpisodeInSeason(0);
+    
     toast.success('Media added successfully!');
   };
 
@@ -396,6 +409,30 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
       case 'search':
         return (
           <div className="space-y-4">
+            {/* Database reliability warning for anime/manga */}
+            {(mediaType === MediaType.Anime || mediaType === MediaType.Manga) && (
+              <div className="p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <svg className="w-5 h-5 text-orange-600 dark:text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium text-sm text-orange-800 dark:text-orange-300">
+                      Database Info May Be Inaccurate
+                    </h4>
+                    <p className="text-xs text-orange-700 dark:text-orange-400 mt-1">
+                      {mediaType === MediaType.Anime 
+                        ? 'Anime databases often have wrong episode counts and season info. Search is mainly useful for grabbing cover art—you\'ll set episode counts manually.'
+                        : 'Manga databases often have incomplete chapter info. Search is mainly useful for grabbing cover art—you\'ll set chapter counts manually.'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="flex gap-2">
               <Input
                 placeholder={`Search for ${mediaType.toLowerCase()}...`}
@@ -590,7 +627,166 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Flexible Anime Season Tracking - show for both manual and automatic (details) */}
+              {(step === 'manual' || step === 'details') && mediaType === MediaType.Anime && (
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+                  {step === 'details' && selectedResult && (
+                    <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded text-xs text-blue-700 dark:text-blue-400">
+                      <strong>Cover art loaded.</strong> Now set your episode counts below—database info is often wrong.
+                    </div>
+                  )}
+                  <div>
+                    <h3 className="font-medium text-sm mb-3">
+                      Anime Tracking Options
+                    </h3>
+                    
+                    {/* Toggle for season tracking */}
+                    <div className="flex items-center space-x-2 mb-4">
+                      <input
+                        type="checkbox"
+                        id="use-season-tracking"
+                        checked={useSeasonTracking}
+                        onChange={(e) => {
+                          setUseSeasonTracking(e.target.checked);
+                          if (!e.target.checked) {
+                            // Reset season-related state
+                            form.setValue('seasonInfo', undefined);
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-gray-300"
+                      />
+                      <Label htmlFor="use-season-tracking" className="text-sm cursor-pointer">
+                        Track by seasons (for multi-season anime)
+                      </Label>
+                    </div>
+
+                    {useSeasonTracking ? (
+                      <div className="space-y-4">
+                        {/* Number of seasons */}
+                        <div>
+                          <Label htmlFor="season-count" className="text-sm">Number of Seasons</Label>
+                          <Input
+                            id="season-count"
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={seasonCount}
+                            onChange={(e) => {
+                              const count = Math.max(1, Math.min(20, parseInt(e.target.value) || 1));
+                              setSeasonCount(count);
+                              // Adjust seasonEpisodes array
+                              const newEpisodes = [...seasonEpisodes];
+                              while (newEpisodes.length < count) {
+                                newEpisodes.push(12);
+                              }
+                              setSeasonEpisodes(newEpisodes.slice(0, count));
+                              // Adjust current season if needed
+                              if (currentSeason > count) {
+                                setCurrentSeason(count);
+                              }
+                            }}
+                            className="mt-1"
+                          />
+                        </div>
+
+                        {/* Episodes per season */}
+                        <div>
+                          <Label className="text-sm mb-2 block">Episodes per Season</Label>
+                          <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                            {Array.from({ length: seasonCount }, (_, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <Label className="text-xs whitespace-nowrap min-w-16">Season {i + 1}:</Label>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  max="999"
+                                  value={seasonEpisodes[i] || 12}
+                                  onChange={(e) => {
+                                    const newEpisodes = [...seasonEpisodes];
+                                    newEpisodes[i] = Math.max(1, parseInt(e.target.value) || 12);
+                                    setSeasonEpisodes(newEpisodes);
+                                  }}
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Current season selector */}
+                        <div>
+                          <Label htmlFor="current-season" className="text-sm">Current Season Watching</Label>
+                          <Select
+                            value={currentSeason.toString()}
+                            onValueChange={(value) => {
+                              setCurrentSeason(parseInt(value));
+                              setCurrentEpisodeInSeason(0);
+                            }}
+                          >
+                            <SelectTrigger className="mt-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: seasonCount }, (_, i) => (
+                                <SelectItem key={i + 1} value={(i + 1).toString()}>
+                                  Season {i + 1} ({seasonEpisodes[i] || 12} episodes)
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Current episode in season */}
+                        <div>
+                          <Label htmlFor="current-episode-season" className="text-sm">
+                            Current Episode in Season {currentSeason}
+                          </Label>
+                          <Input
+                            id="current-episode-season"
+                            type="number"
+                            min="0"
+                            max={seasonEpisodes[currentSeason - 1] || 12}
+                            value={currentEpisodeInSeason}
+                            onChange={(e) => {
+                              const max = seasonEpisodes[currentSeason - 1] || 12;
+                              setCurrentEpisodeInSeason(Math.max(0, Math.min(max, parseInt(e.target.value) || 0)));
+                            }}
+                            className="mt-1"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Total across all seasons: {seasonEpisodes.slice(0, currentSeason - 1).reduce((sum, eps) => sum + eps, 0) + currentEpisodeInSeason} episodes
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-xs text-muted-foreground">
+                          Simple episode tracking without seasons. Use this for single-season anime or if you prefer not to track by seasons.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Manga tracking note - show for both manual and automatic (details) */}
+              {(step === 'manual' || step === 'details') && mediaType === MediaType.Manga && (
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
+                  {step === 'details' && selectedResult ? (
+                    <p className="text-xs text-blue-700 dark:text-blue-400">
+                      <strong>Cover art loaded.</strong> Now enter your current chapter and total chapters below.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-blue-700 dark:text-blue-400">
+                      <strong>Tip:</strong> Enter current chapter and total chapters. Leave total blank if ongoing.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Only show these fields if NOT using season tracking for anime */}
+              {!((step === 'manual' || step === 'details') && mediaType === MediaType.Anime && useSeasonTracking) && (
+                <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="currentProgress"
@@ -659,6 +855,7 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                   )}
                 />
               </div>
+              )}
 
               <div className="flex gap-2">
                 <Button 

@@ -25,6 +25,7 @@ export interface SeasonInfo {
   episodesInSeason?: number;        // Episodes in current season
   seasonYear?: number;              // Year the season aired
   seasonPeriod?: string;            // Spring/Summer/Fall/Winter for anime
+  seasonEpisodes?: number[];        // Episode count for each season [12, 12, 24, ...]
 }
 
 export interface ExternalMetadata {

@@ -6,13 +6,41 @@ const calculateCurrentSeasonAndEpisode = (item: MediaItem): { season: number; ep
     return { season: 1, episode: item.progress?.current ?? 0, episodesInSeason: 12 };
   }
 
+  // If we have the full season episode breakdown, calculate accurately
+  if (item.seasonInfo.seasonEpisodes && item.seasonInfo.seasonEpisodes.length > 0) {
+    const absoluteEpisode = item.progress.current || 0;
+    let episodeCount = 0;
+    
+    // Find which season the absolute episode falls into
+    for (let i = 0; i < item.seasonInfo.seasonEpisodes.length; i++) {
+      const episodesInThisSeason = item.seasonInfo.seasonEpisodes[i];
+      
+      if (absoluteEpisode <= episodeCount + episodesInThisSeason) {
+        // Found the season!
+        return {
+          season: i + 1,
+          episode: absoluteEpisode - episodeCount,
+          episodesInSeason: episodesInThisSeason
+        };
+      }
+      
+      episodeCount += episodesInThisSeason;
+    }
+    
+    // If we've gone through all seasons, they're at the end
+    const lastSeasonIndex = item.seasonInfo.seasonEpisodes.length - 1;
+    return {
+      season: lastSeasonIndex + 1,
+      episode: item.seasonInfo.seasonEpisodes[lastSeasonIndex],
+      episodesInSeason: item.seasonInfo.seasonEpisodes[lastSeasonIndex]
+    };
+  }
+
+  // Fallback for items without full episode breakdown (backwards compatibility)
   const startingSeason = item.seasonInfo.currentSeason || 1;
   const episodesPerSeason = item.seasonInfo.episodesInSeason || 12;
   const currentEpisodeInSeason = item.progress.current || 1;
 
-  // Since currentProgress now represents episode within the selected season,
-  // the current season is always the starting season (unless they've progressed beyond it)
-  // For now, we'll assume they're still within the starting season
   return {
     season: startingSeason,
     episode: currentEpisodeInSeason,
@@ -80,27 +108,18 @@ export const getProgressPercentage = (item: MediaItem): number => {
   const current = item.progress?.current ?? 0;
   let total = item.progress?.total ?? 0;
   
-  // For season-aware media, calculate progress against the entire show
-  if ((item.mediaType === MediaType.Show || item.mediaType === MediaType.Anime) && item.seasonInfo) {
-    // current = episode within the selected season
-    // Calculate absolute episode position: (seasonsWatched * episodesPerSeason) + currentEpisodeInSeason
-    const episodeInSeason = current;
-    const startingSeason = item.seasonInfo.currentSeason || 1;
-    const episodesPerSeason = item.seasonInfo.episodesInSeason || 12;
-    const totalSeasons = item.seasonInfo.totalSeasons || 1;
+  // For season-aware media with season tracking enabled and episode breakdown available
+  if ((item.mediaType === MediaType.Show || item.mediaType === MediaType.Anime) && 
+      item.seasonInfo?.seasonEpisodes && 
+      item.seasonInfo.seasonEpisodes.length > 0) {
+    // When season tracking is enabled with full episode breakdown:
+    // - current = absolute episode number across all seasons (e.g., 22)
+    // - total = total episodes across all seasons (e.g., 24)
+    // - This shows progress through the entire show
     
-    // Episodes from previous seasons (before the starting season)
-    const previousSeasonEpisodes = (startingSeason - 1) * episodesPerSeason;
+    if (total <= 0) return 0;
     
-    // Current absolute episode position
-    const absoluteEpisode = previousSeasonEpisodes + episodeInSeason;
-    
-    // Total episodes in the entire show
-    const totalShowEpisodes = totalSeasons * episodesPerSeason;
-    
-    if (totalShowEpisodes <= 0) return 0;
-    
-    const percentage = (absoluteEpisode / totalShowEpisodes) * 100;
+    const percentage = (current / total) * 100;
     return Math.round(percentage * 10) / 10; // Round to 1 decimal place
   }
   
