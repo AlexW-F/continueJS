@@ -131,13 +131,6 @@ export function MediaCard({ media, onEdit, onDelete, className }: MediaCardProps
                 />
               </div>
             )}
-
-            {/* Additional info */}
-            {media.external?.score && (
-              <div className="mt-2 text-xs text-muted-foreground">
-                Score: {media.external.score}/10
-              </div>
-            )}
           </div>
         </div>
       </CardContent>
