@@ -13,7 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Edit, Trash2, Calendar } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, Calendar, CheckCircle } from 'lucide-react';
 import { useState } from 'react';
 import Image from 'next/image';
 
@@ -21,10 +21,11 @@ interface MediaCardProps {
   media: MediaItem;
   onEdit: (media: MediaItem) => void;
   onDelete: (id: string) => void;
+  onMarkCompleted?: (media: MediaItem) => void;
   className?: string;
 }
 
-export function MediaCard({ media, onEdit, onDelete, className }: MediaCardProps) {
+export function MediaCard({ media, onEdit, onDelete, onMarkCompleted, className }: MediaCardProps) {
   const [imageError, setImageError] = useState(false);
 
   const getProgressText = (): string => {
@@ -43,6 +44,16 @@ export function MediaCard({ media, onEdit, onDelete, className }: MediaCardProps
       onDelete(media.mediaItemId);
     }
   };
+
+  const handleMarkCompleted = () => {
+    if (onMarkCompleted && media.mediaItemId) {
+      onMarkCompleted(media);
+    }
+  };
+
+  const isCompleted = getProgressPercentage(media) >= 100;
+  const isNotCompletedStatus = media.status !== MediaStatus.Completed;
+  const shouldShowCompleteButton = isCompleted && isNotCompletedStatus;
 
   return (
     <Card className={`hover:shadow-md transition-shadow duration-200 ${className}`}>
@@ -129,6 +140,21 @@ export function MediaCard({ media, onEdit, onDelete, className }: MediaCardProps
                     ''
                   }`}
                 />
+              </div>
+            )}
+
+            {/* Mark as Completed Button */}
+            {shouldShowCompleteButton && (
+              <div className="mt-3">
+                <Button
+                  onClick={handleMarkCompleted}
+                  size="sm"
+                  className="w-full h-8 text-xs"
+                  variant="default"
+                >
+                  <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                  Mark as Completed
+                </Button>
               </div>
             )}
           </div>

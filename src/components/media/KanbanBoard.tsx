@@ -38,9 +38,10 @@ interface SortableMediaCardProps {
   media: MediaItem;
   onEdit: (media: MediaItem) => void;
   onDelete: (id: string) => void;
+  onMarkCompleted?: (media: MediaItem) => void;
 }
 
-function SortableMediaCard({ media, onEdit, onDelete }: SortableMediaCardProps) {
+function SortableMediaCard({ media, onEdit, onDelete, onMarkCompleted }: SortableMediaCardProps) {
   const {
     attributes,
     listeners,
@@ -62,6 +63,7 @@ function SortableMediaCard({ media, onEdit, onDelete }: SortableMediaCardProps) 
         media={media} 
         onEdit={onEdit} 
         onDelete={onDelete}
+        onMarkCompleted={onMarkCompleted}
         className="cursor-grab active:cursor-grabbing"
       />
     </div>
@@ -72,9 +74,10 @@ interface KanbanColumnProps {
   column: KanbanColumn;
   onEdit: (media: MediaItem) => void;
   onDelete: (id: string) => void;
+  onMarkCompleted?: (media: MediaItem) => void;
 }
 
-function KanbanColumnComponent({ column, onEdit, onDelete }: KanbanColumnProps) {
+function KanbanColumnComponent({ column, onEdit, onDelete, onMarkCompleted }: KanbanColumnProps) {
   const {
     setNodeRef,
     isOver,
@@ -116,6 +119,7 @@ function KanbanColumnComponent({ column, onEdit, onDelete }: KanbanColumnProps) 
                   media={media}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  onMarkCompleted={onMarkCompleted}
                 />
               ))}
             </SortableContext>
@@ -139,6 +143,12 @@ export function KanbanBoard({ media, onUpdateStatus, onEdit, onDelete }: KanbanB
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  const handleMarkCompleted = (media: MediaItem) => {
+    if (media.mediaItemId) {
+      onUpdateStatus(media.mediaItemId, MediaStatus.Completed);
+    }
+  };
 
   const columns: KanbanColumn[] = useMemo(() => {
     const groupedMedia = media.reduce((acc, item) => {
@@ -217,6 +227,7 @@ export function KanbanBoard({ media, onUpdateStatus, onEdit, onDelete }: KanbanB
               column={column}
               onEdit={onEdit}
               onDelete={onDelete}
+              onMarkCompleted={handleMarkCompleted}
             />
           ))}
         </SortableContext>
@@ -228,6 +239,7 @@ export function KanbanBoard({ media, onUpdateStatus, onEdit, onDelete }: KanbanB
             media={activeMedia}
             onEdit={onEdit}
             onDelete={onDelete}
+            onMarkCompleted={handleMarkCompleted}
             className="rotate-3 shadow-xl"
           />
         ) : null}
