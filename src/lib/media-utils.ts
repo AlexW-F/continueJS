@@ -109,18 +109,39 @@ export const getProgressPercentage = (item: MediaItem): number => {
   let total = item.progress?.total ?? 0;
   
   // For season-aware media with season tracking enabled and episode breakdown available
-  if ((item.mediaType === MediaType.Show || item.mediaType === MediaType.Anime) && 
-      item.seasonInfo?.seasonEpisodes && 
-      item.seasonInfo.seasonEpisodes.length > 0) {
-    // When season tracking is enabled with full episode breakdown:
-    // - current = absolute episode number across all seasons (e.g., 22)
-    // - total = total episodes across all seasons (e.g., 24)
-    // - This shows progress through the entire show
+  if ((item.mediaType === MediaType.Show || item.mediaType === MediaType.Anime) && item.seasonInfo) {
+    // If we have the full episode breakdown, use actual stored progress
+    if (item.seasonInfo.seasonEpisodes && item.seasonInfo.seasonEpisodes.length > 0) {
+      // When season tracking is enabled with full episode breakdown:
+      // - current = absolute episode number across all seasons (e.g., 34)
+      // - total = total episodes across all seasons (e.g., 40)
+      // - This shows progress through the entire show
+      
+      if (total <= 0) return 0;
+      
+      const percentage = (current / total) * 100;
+      return Math.round(percentage * 10) / 10; // Round to 1 decimal place
+    }
     
-    if (total <= 0) return 0;
-    
-    const percentage = (current / total) * 100;
-    return Math.round(percentage * 10) / 10; // Round to 1 decimal place
+    // Fallback for legacy data without seasonEpisodes array
+    // Assume current and total are in the context of the selected season
+    // Calculate absolute progress: (seasons before current * eps per season) + current episode
+    if (item.seasonInfo.currentSeason && item.seasonInfo.episodesInSeason && item.seasonInfo.totalSeasons) {
+      const episodesPerSeason = item.seasonInfo.episodesInSeason;
+      const currentSeason = item.seasonInfo.currentSeason;
+      const totalSeasons = item.seasonInfo.totalSeasons;
+      
+      // For legacy data: current = episode in season, total = episodes in that season
+      const episodeInSeason = current;
+      const previousSeasonEpisodes = (currentSeason - 1) * episodesPerSeason;
+      const absoluteEpisode = previousSeasonEpisodes + episodeInSeason;
+      const totalShowEpisodes = totalSeasons * episodesPerSeason;
+      
+      if (totalShowEpisodes <= 0) return 0;
+      
+      const percentage = (absoluteEpisode / totalShowEpisodes) * 100;
+      return Math.round(percentage * 10) / 10;
+    }
   }
   
   if (total <= 0) return 0;

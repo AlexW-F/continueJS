@@ -35,6 +35,7 @@ const editMediaSchema = z.object({
       episodesInSeason: z.number().optional(),
       seasonYear: z.number().optional(),
       seasonPeriod: z.string().optional(),
+      seasonEpisodes: z.array(z.number()).optional(),
     }).optional(),
   }).optional(),
   seasonInfo: z.object({
@@ -44,6 +45,7 @@ const editMediaSchema = z.object({
     episodesInSeason: z.number().optional(),
     seasonYear: z.number().optional(),
     seasonPeriod: z.string().optional(),
+    seasonEpisodes: z.array(z.number()).optional(),
   }).optional(),
 });
 
@@ -56,6 +58,9 @@ interface EditMediaDialogProps {
 
 export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMediaDialogProps) {
   const [showSeasonCompleteMessage, setShowSeasonCompleteMessage] = useState(false);
+  const [editingSeasons, setEditingSeasons] = useState(false);
+  const [seasonCount, setSeasonCount] = useState(1);
+  const [seasonEpisodes, setSeasonEpisodes] = useState<number[]>([12]);
 
   const form = useForm<EditMediaFormData>({
     resolver: zodResolver(editMediaSchema),
@@ -75,6 +80,15 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
         seasonInfo: media.seasonInfo,
       });
       setShowSeasonCompleteMessage(false);
+      
+      // Initialize season editing state
+      if (media.seasonInfo?.seasonEpisodes) {
+        setSeasonCount(media.seasonInfo.seasonEpisodes.length);
+        setSeasonEpisodes(media.seasonInfo.seasonEpisodes);
+      } else if (media.seasonInfo?.totalSeasons && media.seasonInfo?.episodesInSeason) {
+        setSeasonCount(media.seasonInfo.totalSeasons);
+        setSeasonEpisodes(Array(media.seasonInfo.totalSeasons).fill(media.seasonInfo.episodesInSeason));
+      }
     }
   }, [media, open, form]);
 
@@ -130,7 +144,66 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
     handleSeasonChange('next');
   };
 
+  const handleSeasonEpisodesUpdate = (seasonIndex: number, episodes: number) => {
+    const newSeasonEpisodes = [...seasonEpisodes];
+    newSeasonEpisodes[seasonIndex] = episodes;
+    setSeasonEpisodes(newSeasonEpisodes);
+  };
+
+  const handleSeasonCountChange = (newCount: number) => {
+    setSeasonCount(newCount);
+    
+    // Adjust seasonEpisodes array
+    if (newCount > seasonEpisodes.length) {
+      // Add new seasons with default 12 episodes
+      setSeasonEpisodes([...seasonEpisodes, ...Array(newCount - seasonEpisodes.length).fill(12)]);
+    } else {
+      // Remove extra seasons
+      setSeasonEpisodes(seasonEpisodes.slice(0, newCount));
+    }
+  };
+
+  const applySeasonEdits = () => {
+    const currentSeason = form.getValues('seasonInfo.currentSeason') || 1;
+    const totalEpisodes = seasonEpisodes.reduce((sum, eps) => sum + eps, 0);
+    const currentProgress = form.getValues('currentProgress') || 0;
+    
+    // Calculate absolute progress based on current season and episode
+    const episodesInPreviousSeasons = seasonEpisodes
+      .slice(0, currentSeason - 1)
+      .reduce((sum, eps) => sum + eps, 0);
+    
+    // Update form with new season info
+    form.setValue('seasonInfo', {
+      ...form.getValues('seasonInfo'),
+      totalSeasons: seasonCount,
+      episodesInSeason: seasonEpisodes[currentSeason - 1],
+      seasonEpisodes: seasonEpisodes,
+    });
+    
+    form.setValue('currentProgress', episodesInPreviousSeasons + currentProgress);
+    form.setValue('totalProgress', totalEpisodes);
+    
+    setEditingSeasons(false);
+    toast.success('Season information updated!');
+  };
+
   const handleSubmit = (data: EditMediaFormData) => {
+    // Recalculate absolute progress if season tracking is enabled
+    if (data.seasonInfo?.seasonEpisodes) {
+      const currentSeason = data.seasonInfo.currentSeason || 1;
+      const currentProgress = data.currentProgress || 0;
+      const seasonEps = data.seasonInfo.seasonEpisodes;
+      
+      const episodesInPreviousSeasons = seasonEps
+        .slice(0, currentSeason - 1)
+        .reduce((sum, eps) => sum + eps, 0);
+      const totalEpisodes = seasonEps.reduce((sum, eps) => sum + eps, 0);
+      
+      data.currentProgress = episodesInPreviousSeasons + currentProgress;
+      data.totalProgress = totalEpisodes;
+    }
+    
     onEdit(data);
     onOpenChange(false);
     toast.success('Media updated successfully!');
@@ -166,7 +239,7 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Media</DialogTitle>
           <DialogDescription>
@@ -303,6 +376,17 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
                   )}
                 </div>
                 
+                {/* Edit Season Info Button */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditingSeasons(true)}
+                  className="w-full"
+                >
+                  Edit Season Information
+                </Button>
+                
                 {/* Season Complete Message */}
                 {showSeasonCompleteMessage && (
                   <div className="bg-green-50 border border-green-200 rounded-md p-3">
@@ -325,6 +409,62 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Season Editing Dialog */}
+            {editingSeasons && (
+              <div className="bg-muted p-4 rounded-lg space-y-3 border-2 border-primary">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Edit Season Information</h3>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditingSeasons(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                
+                {/* Season Count */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Number of Seasons</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={seasonCount}
+                    onChange={(e) => handleSeasonCountChange(parseInt(e.target.value) || 1)}
+                  />
+                </div>
+                
+                {/* Episodes per Season */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Episodes per Season</label>
+                  <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto p-1 border rounded">
+                    {Array.from({ length: seasonCount }, (_, i) => (
+                      <div key={i} className="space-y-1">
+                        <label className="text-xs text-muted-foreground">S{i + 1}</label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={seasonEpisodes[i] || 12}
+                          onChange={(e) => handleSeasonEpisodesUpdate(i, parseInt(e.target.value) || 12)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <Button
+                  type="button"
+                  onClick={applySeasonEdits}
+                  className="w-full"
+                >
+                  Apply Changes
+                </Button>
               </div>
             )}
 

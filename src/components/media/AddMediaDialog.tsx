@@ -255,6 +255,23 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
       };
     }
     
+    // Process TV show season tracking (uses API data)
+    if (mediaType === MediaType.Show && data.seasonInfo?.seasonEpisodes) {
+      const seasonEps = data.seasonInfo.seasonEpisodes;
+      const currentSeason = data.seasonInfo.currentSeason || 1;
+      const currentProgress = data.currentProgress || 0;
+      
+      // Calculate total episodes and absolute progress
+      const totalEpisodes = seasonEps.reduce((sum, eps) => sum + eps, 0);
+      const episodesInPreviousSeasons = seasonEps
+        .slice(0, currentSeason - 1)
+        .reduce((sum, eps) => sum + eps, 0);
+      const absoluteProgress = episodesInPreviousSeasons + currentProgress;
+      
+      data.currentProgress = absoluteProgress;
+      data.totalProgress = totalEpisodes;
+    }
+    
     onAdd(data);
     setOpen(false);
     setStep('type');

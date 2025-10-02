@@ -53,8 +53,12 @@ export function createSeasonInfoFromShow(show: ShowDetailsResult, selectedSeason
   // Find the selected season
   const season = show.seasons.find(s => s.season_number === currentSeason);
   
-  // For simplicity, use the selected season's episode count for all seasons
-  // In production, you'd want to store individual season episode counts
+  // Extract episode counts for all seasons (excluding season 0 - specials)
+  const seasonEpisodes = show.seasons
+    .filter(s => s.season_number > 0)
+    .sort((a, b) => a.season_number - b.season_number)
+    .map(s => s.episode_count);
+  
   const episodesInSeason = season?.episode_count || 12;
   
   return {
@@ -63,6 +67,7 @@ export function createSeasonInfoFromShow(show: ShowDetailsResult, selectedSeason
     seasonName: season?.name || `Season ${currentSeason}`,
     episodesInSeason,
     seasonYear: season?.air_date ? new Date(season.air_date).getFullYear() : undefined,
+    seasonEpisodes, // Store full episode breakdown for all seasons
   };
 }
 
