@@ -35,7 +35,6 @@ const addMediaSchema = z.object({
     source: z.string().optional(),
     score: z.number().optional(),
     genres: z.array(z.string()).optional(),
-    synopsis: z.string().optional(),
   }).optional(),
   seasonInfo: z.object({
     currentSeason: z.number().optional(),
@@ -158,7 +157,6 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
           source: 'MyAnimeList',
           score: animeResult.score,
           genres: animeResult.genres?.map(g => g.name),
-          synopsis: animeResult.synopsis,
         });
       }
       
@@ -180,7 +178,6 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
           id: show.id.toString(),
           source: 'TMDB',
           score: show.vote_average,
-          synopsis: show.overview,
         });
         
         // If multiple seasons, go to season selection
@@ -204,7 +201,6 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
           id: show.id.toString(),
           source: 'TMDB',
           score: show.vote_average,
-          synopsis: show.overview,
         });
         setStep('details');
       } finally {
@@ -221,7 +217,6 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
         source: 'Google Books',
         score: book.volumeInfo.averageRating,
         genres: book.volumeInfo.categories,
-        synopsis: book.volumeInfo.description,
       });
       setStep('details');
     }
@@ -359,8 +354,8 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sm truncate">{title}</h4>
-                  <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+                  <h4 className="font-medium text-sm line-clamp-2">{title}</h4>
+                  <p className="text-xs text-muted-foreground line-clamp-1">{subtitle}</p>
                 </div>
               </CardContent>
             </Card>

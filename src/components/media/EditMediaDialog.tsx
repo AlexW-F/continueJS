@@ -27,7 +27,6 @@ const editMediaSchema = z.object({
     source: z.string().optional(),
     score: z.number().optional(),
     genres: z.array(z.string()).optional(),
-    synopsis: z.string().optional(),
   }).optional(),
   seasonInfo: z.object({
     currentSeason: z.number().optional(),
@@ -548,15 +547,6 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
                 )}
               />
             </div>
-
-            {media.external?.synopsis && (
-              <div className="bg-muted p-3 rounded-md">
-                <h4 className="text-sm font-medium mb-2">Synopsis</h4>
-                <p className="text-sm text-muted-foreground line-clamp-3">
-                  {media.external.synopsis}
-                </p>
-              </div>
-            )}
 
             <div className="flex gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1">

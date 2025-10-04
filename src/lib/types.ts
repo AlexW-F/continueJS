@@ -33,7 +33,6 @@ export interface ExternalMetadata {
   source?: string;
   score?: number;
   genres?: string[];
-  synopsis?: string;
 }
 
 export interface MediaItem {
@@ -80,7 +79,6 @@ export interface AnimeSearchResult {
   episodes?: number;
   score?: number;
   genres?: Array<{ name: string }>;
-  synopsis?: string;
   status?: string;
   type?: string;
   season?: string;              // Spring/Summer/Fall/Winter
@@ -102,7 +100,6 @@ export interface MangaSearchResult {
   volumes?: number;
   score?: number;
   genres?: Array<{ name: string }>;
-  synopsis?: string;
   status?: string;
   type?: string;
 }

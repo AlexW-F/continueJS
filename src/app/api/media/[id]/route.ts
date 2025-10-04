@@ -72,17 +72,16 @@ function mapAdditionalProgress(value: unknown): Record<string, { current?: numbe
   return result;
 }
 
-function mapExternalMetadata(value: unknown): { id?: string; source?: string; score?: number; genres?: string[]; synopsis?: string } | undefined {
+function mapExternalMetadata(value: unknown): { id?: string; source?: string; score?: number; genres?: string[] } | undefined {
   if (!value) return undefined;
   
-  const metadata = value as { id?: string; source?: string; score?: number; genres?: string[]; synopsis?: string; Id?: string; Source?: string; Score?: number; Genres?: string[]; Synopsis?: string };
+  const metadata = value as { id?: string; source?: string; score?: number; genres?: string[]; Id?: string; Source?: string; Score?: number; Genres?: string[] };
   
   return {
     id: metadata.id || metadata.Id,
     source: metadata.source || metadata.Source,
     score: metadata.score || metadata.Score,
-    genres: metadata.genres || metadata.Genres,
-    synopsis: metadata.synopsis || metadata.Synopsis
+    genres: metadata.genres || metadata.Genres
   };
 }
 
