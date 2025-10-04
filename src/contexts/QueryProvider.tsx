@@ -12,11 +12,11 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 15 * 60 * 1000, // 15 minutes - keep data fresh longer
-            gcTime: 60 * 60 * 1000, // 1 hour - keep data in cache much longer
-            refetchOnWindowFocus: false, // Don't refetch when window gains focus
-            refetchOnMount: false, // Don't refetch when component mounts if data exists
-            refetchOnReconnect: false, // Don't refetch on network reconnect
+            staleTime: 0, // Consider data immediately stale for real-time updates
+            gcTime: 30 * 60 * 1000, // 30 minutes - reduced cache time
+            refetchOnWindowFocus: true, // Refetch when window gains focus
+            refetchOnMount: true, // Refetch when component mounts
+            refetchOnReconnect: true, // Refetch on network reconnect
             retry: (failureCount, error) => {
               // Don't retry on 401/403 errors
               if (error instanceof Error && (error.message.includes('401') || error.message.includes('403'))) {
@@ -43,8 +43,8 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       persistQueryClient({
         queryClient,
         persister,
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        buster: '', // You can use this to invalidate cache when app version changes
+        maxAge: 1 * 60 * 60 * 1000, // Reduced to 1 hour for faster sync
+        buster: 'v2', // Invalidate old cache with real-time updates
       });
     }
   }, [queryClient]);

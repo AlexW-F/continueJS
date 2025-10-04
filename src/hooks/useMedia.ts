@@ -6,20 +6,66 @@ import { mediaService } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export function useMedia() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Set up real-time Firestore listener
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const mediaCollection = collection(db, 'users', user.uid, 'media');
+    const mediaQuery = query(mediaCollection);
+
+    // Subscribe to real-time updates
+    const unsubscribe = onSnapshot(
+      mediaQuery,
+      (snapshot) => {
+        const mediaItems: MediaItem[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          // Convert Firestore Timestamps to Date objects
+          mediaItems.push({
+            ...data,
+            dateAdded: data.dateAdded?.toDate?.() || data.dateAdded,
+            datePaused: data.datePaused?.toDate?.() || data.datePaused,
+          } as MediaItem);
+        });
+        
+        // Update the query cache with real-time data
+        queryClient.setQueryData(['media', user.uid], mediaItems);
+      },
+      (error) => {
+        console.error('Firestore listener error:', error);
+        toast.error('Connection error. Retrying...');
+      }
+    );
+
+    // Cleanup listener on unmount or user change
+    return () => unsubscribe();
+  }, [user?.uid, queryClient]);
 
   return useQuery({
     queryKey: ['media', user?.uid],
-    queryFn: () => mediaService.getMedia(),
+    queryFn: () => {
+      // Check if we already have data from the real-time listener
+      const cachedData = queryClient.getQueryData<MediaItem[]>(['media', user?.uid]);
+      if (cachedData) {
+        return cachedData;
+      }
+      // Fallback to API only if no cached data (e.g., first load before listener fires)
+      return mediaService.getMedia();
+    },
     enabled: !!user, // Only run query when user is authenticated
-    staleTime: 15 * 60 * 1000, // 15 minutes - data stays fresh longer
-    gcTime: 60 * 60 * 1000, // 1 hour - keep in cache much longer
-    refetchOnWindowFocus: false, // Don't refetch when user comes back to tab
-    refetchOnMount: false, // Don't refetch on component mount if data exists
-    refetchOnReconnect: false, // Don't refetch on network reconnect
+    staleTime: Infinity, // Data is always fresh thanks to real-time listener
+    gcTime: 60 * 60 * 1000, // 1 hour - keep in cache
+    refetchOnWindowFocus: false, // Real-time listener handles updates
+    refetchOnMount: false, // Real-time listener handles updates
+    refetchOnReconnect: false, // Real-time listener handles updates
     retry: (failureCount, error) => {
       // Don't retry if user is not authenticated
       if (error instanceof Error && error.message.includes('not authenticated')) {

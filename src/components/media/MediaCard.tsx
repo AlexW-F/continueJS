@@ -66,6 +66,7 @@ export function MediaCard({ media, onEdit, onDelete, onMarkCompleted, className 
                   src={media.coverArtUrl}
                   alt={media.name || 'Cover art'}
                   fill
+                  sizes="64px"
                   className="object-cover"
                   onError={() => setImageError(true)}
                 />

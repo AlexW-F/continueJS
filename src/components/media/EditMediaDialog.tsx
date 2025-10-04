@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { MediaItem, MediaType, MediaStatus, EditMediaFormData, SeasonInfo } from '@/lib/types';
@@ -56,6 +56,12 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
     resolver: zodResolver(editMediaSchema),
   });
 
+  // Watch currentProgress using useWatch hook
+  const currentProgress = useWatch({
+    control: form.control,
+    name: 'currentProgress',
+  });
+
   useEffect(() => {
     if (media && open) {
       // Initialize season editing state first
@@ -104,7 +110,6 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
 
   // Check if user has completed current season
   useEffect(() => {
-    const currentProgress = form.watch('currentProgress');
     const seasonInfo = form.getValues('seasonInfo');
     
     if (seasonInfo?.episodesInSeason && currentProgress === seasonInfo.episodesInSeason) {
@@ -114,7 +119,7 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
     } else {
       setShowSeasonCompleteMessage(false);
     }
-  }, [form.watch('currentProgress')]);
+  }, [currentProgress, form]);
 
   const handleSeasonChange = (direction: 'prev' | 'next') => {
     const seasonInfo = form.getValues('seasonInfo');
