@@ -120,9 +120,8 @@ export function useUpdateMedia() {
         external: {
           ...currentMedia.external,
           ...data.external,
-          seasonInfo: data.seasonInfo, // Merge seasonInfo into external
         },
-        seasonInfo: data.seasonInfo, // Also keep it at top level for components
+        seasonInfo: data.seasonInfo, // Store seasonInfo at top level only
         datePaused: data.status === MediaStatus.Paused ? new Date() : currentMedia.datePaused,
       };
 
@@ -138,8 +137,8 @@ export function useUpdateMedia() {
         external: {
           ...currentMedia.external,
           ...data.external,
-          seasonInfo: data.seasonInfo, // Ensure seasonInfo is stored in external
         },
+        seasonInfo: data.seasonInfo, // Store seasonInfo at top level
       };
 
       await mediaService.updateMedia(apiData);

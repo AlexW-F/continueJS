@@ -34,7 +34,6 @@ export interface ExternalMetadata {
   score?: number;
   genres?: string[];
   synopsis?: string;
-  seasonInfo?: SeasonInfo;          // Season-specific metadata
 }
 
 export interface MediaItem {

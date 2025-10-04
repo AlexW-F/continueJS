@@ -36,14 +36,6 @@ const addMediaSchema = z.object({
     score: z.number().optional(),
     genres: z.array(z.string()).optional(),
     synopsis: z.string().optional(),
-    seasonInfo: z.object({
-      currentSeason: z.number().optional(),
-      totalSeasons: z.number().optional(),
-      seasonName: z.string().optional(),
-      episodesInSeason: z.number().optional(),
-      seasonYear: z.number().optional(),
-      seasonPeriod: z.string().optional(),
-    }).optional(),
   }).optional(),
   seasonInfo: z.object({
     currentSeason: z.number().optional(),
@@ -52,6 +44,7 @@ const addMediaSchema = z.object({
     episodesInSeason: z.number().optional(),
     seasonYear: z.number().optional(),
     seasonPeriod: z.string().optional(),
+    seasonEpisodes: z.array(z.number()).optional(),
   }).optional(),
 });
 
@@ -306,13 +299,6 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
       
       // Set initial current progress to episode 1 of the selected season (in season terms)
       form.setValue('currentProgress', 1); // Episode 1 of the selected season
-      
-      // Update external metadata with season info
-      const currentExternal = form.getValues('external');
-      form.setValue('external', {
-        ...currentExternal,
-        seasonInfo,
-      });
     } else if (selectedResult && 'mal_id' in selectedResult) {
       // For anime - update season info
       const currentSeasonInfo = form.getValues('seasonInfo');
@@ -325,14 +311,6 @@ export function AddMediaDialog({ onAdd, children }: AddMediaDialogProps) {
       
       // Set initial progress to episode 1 of the selected season
       form.setValue('currentProgress', 1);
-      
-      // For anime, keep the single season episode count as total
-      // This assumes user is tracking just this season of the anime
-      const currentExternal = form.getValues('external');
-      form.setValue('external', {
-        ...currentExternal,
-        seasonInfo: updatedSeasonInfo,
-      });
     }
     
     setStep('details');

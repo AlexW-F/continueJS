@@ -28,15 +28,6 @@ const editMediaSchema = z.object({
     score: z.number().optional(),
     genres: z.array(z.string()).optional(),
     synopsis: z.string().optional(),
-    seasonInfo: z.object({
-      currentSeason: z.number().optional(),
-      totalSeasons: z.number().optional(),
-      seasonName: z.string().optional(),
-      episodesInSeason: z.number().optional(),
-      seasonYear: z.number().optional(),
-      seasonPeriod: z.string().optional(),
-      seasonEpisodes: z.array(z.number()).optional(),
-    }).optional(),
   }).optional(),
   seasonInfo: z.object({
     currentSeason: z.number().optional(),

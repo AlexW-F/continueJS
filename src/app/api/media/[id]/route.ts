@@ -133,9 +133,8 @@ export async function GET(
         mapAdditionalProgress(data?.additionalProgress || data?.AdditionalProgress) : {},
       external: data?.external || data?.External ? 
         mapExternalMetadata(data?.external || data?.External) : undefined,
-      // Extract seasonInfo from either top-level or external.seasonInfo
-      seasonInfo: data?.seasonInfo || data?.SeasonInfo || 
-                  (data?.external?.seasonInfo) || (data?.External?.seasonInfo) || undefined,
+      // Use top-level seasonInfo only
+      seasonInfo: data?.seasonInfo || data?.SeasonInfo || undefined,
     };
 
     return NextResponse.json(mediaItem);
