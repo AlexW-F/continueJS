@@ -86,6 +86,24 @@ export function addCORSHeaders(request: NextRequest, response: NextResponse): Ne
 }
 
 /**
+ * Get identifier for rate limiting (IP or user-specific)
+ */
+export function getRateLimitIdentifier(request: NextRequest): string {
+  // Try to get user ID from Authorization header (if Firebase token)
+  const authHeader = request.headers.get('authorization');
+  if (authHeader) {
+    // Use a hash of the auth token as identifier
+    return `auth:${authHeader.substring(0, 20)}`;
+  }
+  
+  // Fall back to IP address
+  const forwarded = request.headers.get('x-forwarded-for');
+  const realIP = request.headers.get('x-real-ip');
+  const ip = forwarded?.split(',')[0] || realIP || 'unknown';
+  return `ip:${ip}`;
+}
+
+/**
  * Rate limiting configuration
  */
 export interface RateLimitConfig {
@@ -93,31 +111,70 @@ export interface RateLimitConfig {
   maxRequests: number; // Max requests per window
 }
 
+// Rate limit configs for different endpoint types
+export const RATE_LIMITS = {
+  // Search endpoints - more generous (external API calls)
+  search: { windowMs: 60000, maxRequests: 30 }, // 30 per minute
+  
+  // Media CRUD - normal usage
+  media: { windowMs: 60000, maxRequests: 100 }, // 100 per minute
+  
+  // Strict limit for auth/sensitive operations
+  strict: { windowMs: 60000, maxRequests: 20 }, // 20 per minute
+};
+
 // Simple in-memory rate limiter (for production use Redis/Vercel KV)
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 export function rateLimit(
   identifier: string,
-  config: RateLimitConfig = { windowMs: 60000, maxRequests: 100 }
-): boolean {
+  config: RateLimitConfig = RATE_LIMITS.media
+): { allowed: boolean; remaining: number; resetTime: number } {
   const now = Date.now();
   const record = rateLimitStore.get(identifier);
 
   if (!record || now > record.resetTime) {
     // Create new record
-    rateLimitStore.set(identifier, {
+    const newRecord = {
       count: 1,
       resetTime: now + config.windowMs,
-    });
-    return true;
+    };
+    rateLimitStore.set(identifier, newRecord);
+    return { 
+      allowed: true, 
+      remaining: config.maxRequests - 1,
+      resetTime: newRecord.resetTime
+    };
   }
 
   if (record.count >= config.maxRequests) {
-    return false;
+    return { 
+      allowed: false, 
+      remaining: 0,
+      resetTime: record.resetTime
+    };
   }
 
   record.count++;
-  return true;
+  return { 
+    allowed: true, 
+    remaining: config.maxRequests - record.count,
+    resetTime: record.resetTime
+  };
+}
+
+/**
+ * Add rate limit headers to response
+ */
+export function addRateLimitHeaders(
+  response: NextResponse,
+  result: { remaining: number; resetTime: number },
+  config: RateLimitConfig
+): NextResponse {
+  response.headers.set('X-RateLimit-Limit', config.maxRequests.toString());
+  response.headers.set('X-RateLimit-Remaining', result.remaining.toString());
+  response.headers.set('X-RateLimit-Reset', result.resetTime.toString());
+  return response;
 }
 
 /**
