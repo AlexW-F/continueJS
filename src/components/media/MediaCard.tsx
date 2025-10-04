@@ -5,8 +5,7 @@ import {
   getPrimaryProgressText, 
   getSecondaryProgressText, 
   getProgressPercentage, 
-  shouldShowProgressBar,
-  getProgressBarColor 
+  shouldShowProgressBar
 } from '@/lib/media-utils';
 import { formatSeasonDisplay } from '@/lib/season-utils';
 import { Card, CardContent } from '@/components/ui/card';

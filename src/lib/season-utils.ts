@@ -31,7 +31,7 @@ export function extractSeasonFromAnimeTitle(title: string): { seasonNumber?: num
  * Creates season info from anime search result
  */
 export function createSeasonInfoFromAnime(anime: AnimeSearchResult): SeasonInfo {
-  const { seasonNumber, cleanTitle } = extractSeasonFromAnimeTitle(anime.title);
+  const { seasonNumber } = extractSeasonFromAnimeTitle(anime.title);
   
   return {
     currentSeason: seasonNumber,

@@ -5,12 +5,8 @@ import {
   ShowSearchResult,
   ShowDetailsResult,
   BookSearchResult,
-  MediaType,
-  MediaStatus,
-  AddMediaFormData,
   EditMediaFormData
 } from './types';
-import { v4 as uuidv4 } from 'uuid';
 import { auth } from './firebase';
 
 // API Service for our custom Next.js backend

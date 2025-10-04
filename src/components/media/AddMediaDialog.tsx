@@ -4,11 +4,10 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { MediaType, MediaStatus, AddMediaFormData, AnimeSearchResult, MangaSearchResult, ShowSearchResult, ShowDetailsResult, BookSearchResult, SeasonInfo } from '@/lib/types';
+import { MediaType, AddMediaFormData, AnimeSearchResult, MangaSearchResult, ShowSearchResult, ShowDetailsResult, BookSearchResult } from '@/lib/types';
 import { searchService, mediaService } from '@/lib/api';
 import { 
   extractSeasonFromAnimeTitle, 
-  createSeasonInfoFromAnime, 
   createSeasonInfoFromShow, 
   getSeasonOptions 
 } from '@/lib/season-utils';
@@ -22,7 +21,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Search, Loader2, Calendar, Hash } from 'lucide-react';
 import { toast } from 'sonner';
 import Image from 'next/image';
-import { v4 as uuidv4 } from 'uuid';
 
 const addMediaSchema = z.object({
   name: z.string().min(1, 'Name is required'),

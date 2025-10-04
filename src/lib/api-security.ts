@@ -52,8 +52,6 @@ export function validateOrigin(request: NextRequest): boolean {
 export function validateAPIAccess(request: NextRequest): NextResponse | null {
   // Validate origin
   if (!validateOrigin(request)) {
-    const origin = request.headers.get('origin') || 'unknown';
-    
     return NextResponse.json(
       { error: 'Access denied: Origin not allowed' },
       { 

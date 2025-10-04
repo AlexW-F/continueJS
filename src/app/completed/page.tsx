@@ -7,7 +7,6 @@ import { MediaCard } from '@/components/media/MediaCard';
 import { EditMediaDialog } from '@/components/media/EditMediaDialog';
 import { useMedia, useUpdateMedia, useDeleteMedia } from '@/hooks/useMedia';
 import { MediaItem, MediaStatus, EditMediaFormData, MediaType } from '@/lib/types';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle } from 'lucide-react';
