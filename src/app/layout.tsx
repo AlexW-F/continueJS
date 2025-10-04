@@ -12,7 +12,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Continue - Media Progress Tracker",
+  title: "Continue",
   description: "Track your progress across books, anime, manga, and TV shows",
 };
 
