@@ -411,7 +411,7 @@ export function EditMediaDialog({ media, open, onOpenChange, onEdit }: EditMedia
                     </div>
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-sm text-green-700">
-                        You've finished Season {form.getValues('seasonInfo.currentSeason')}. Ready for the next one?
+                        You&apos;ve finished Season {form.getValues('seasonInfo.currentSeason')}. Ready for the next one?
                       </span>
                       <Button
                         type="button"

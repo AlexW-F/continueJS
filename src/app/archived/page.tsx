@@ -113,7 +113,7 @@ function ArchivedContent() {
             <h1 className="text-3xl font-bold text-foreground">Archived</h1>
           </div>
           <p className="text-muted-foreground">
-            Media you've decided to stop watching or reading
+            Media you&apos;ve decided to stop watching or reading
           </p>
         </div>
 

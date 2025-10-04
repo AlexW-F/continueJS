@@ -178,7 +178,7 @@ export async function PUT(
     }
 
     // Prepare the update data
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       ...body,
       mediaItemId: id, // Ensure ID consistency
       dateAdded: docSnapshot.data()?.dateAdded || new Date(), // Preserve original dateAdded
@@ -190,7 +190,7 @@ export async function PUT(
     }
     // If status is being changed from Paused to something else, remove datePaused field
     else if (body.status !== 'Paused' && docSnapshot.data()?.status === 'Paused') {
-      updateData.datePaused = FieldValue.delete();
+      updateData.datePaused = FieldValue.delete() as unknown;
     }
 
     // Remove any undefined values to prevent Firestore errors

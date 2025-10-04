@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
     await ensureUserDocumentExists(auth.userId);
 
     // Create MediaItem with proper structure
-    const mediaItem: any = {
+    const mediaItem: Partial<MediaItem> = {
       mediaItemId: body.mediaItemId || adminDb.collection('users').doc(auth.userId).collection('media').doc().id,
       name: body.name,
       mediaType: body.mediaType,
@@ -211,11 +211,12 @@ export async function POST(request: NextRequest) {
     const mediaCollection = adminDb.collection('users').doc(auth.userId).collection('media');
     
     // Use the MediaItemId as the document ID to ensure consistency
-    const docRef = mediaCollection.doc(mediaItem.mediaItemId);
+    const mediaItemId = mediaItem.mediaItemId || adminDb.collection('users').doc(auth.userId).collection('media').doc().id;
+    const docRef = mediaCollection.doc(mediaItemId);
     
     await docRef.set(firestoreData);
     
-    return NextResponse.json({ mediaItemId: mediaItem.mediaItemId }, { status: 201 });
+    return NextResponse.json({ mediaItemId }, { status: 201 });
   } catch (error) {
     console.error('Error adding media:', error);
     return NextResponse.json(

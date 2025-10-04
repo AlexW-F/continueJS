@@ -106,7 +106,7 @@ export const getSecondaryProgressText = (item: MediaItem): string | null => {
 // Calculate progress percentage (for progress bars) - formatted to 1 decimal place
 export const getProgressPercentage = (item: MediaItem): number => {
   const current = item.progress?.current ?? 0;
-  let total = item.progress?.total ?? 0;
+  const total = item.progress?.total ?? 0;
   
   // For season-aware media with season tracking enabled and episode breakdown available
   if ((item.mediaType === MediaType.Show || item.mediaType === MediaType.Anime) && item.seasonInfo) {
