@@ -1,4 +1,4 @@
-# Continue - Next.js Migration
+# Continue
 
 A modern media progress tracker built with Next.js, TypeScript, and Firebase. Track your progress across books, anime, manga, and TV shows with a beautiful Kanban-style interface.
 
